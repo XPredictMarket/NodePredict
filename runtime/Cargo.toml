@@ -1,0 +1,91 @@
+[package]
+name = "predict-runtime"
+version = "3.0.0"
+authors = ["XPredictMarket"]
+edition = "2018"
+license = "Apache-2.0"
+repository = "https://github.com/XPredictMarket/NodePredict"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+
+pallet-aura = { version = "3.0.0", default-features = false }
+pallet-balances = { version = "3.0.0", default-features = false }
+frame-support = { version = "3.0.0", default-features = false }
+pallet-grandpa = { version = "3.0.0", default-features = false }
+pallet-randomness-collective-flip = { version = "3.0.0", default-features = false }
+pallet-sudo = { version = "3.0.0", default-features = false }
+frame-system = { version = "3.0.0", default-features = false }
+pallet-timestamp = { version = "3.0.0", default-features = false }
+pallet-transaction-payment = { version = "3.0.0", default-features = false }
+frame-executive = { version = "3.0.0", default-features = false }
+serde = { version = "1.0.101", optional = true, features = ["derive"] }
+sp-api = { version = "3.0.0", default-features = false }
+sp-block-builder = { default-features = false, version = "3.0.0"}
+sp-consensus-aura = { version = "0.9.0", default-features = false }
+sp-core = { version = "3.0.0", default-features = false }
+sp-inherents = { default-features = false, version = "3.0.0"}
+sp-offchain = { version = "3.0.0", default-features = false }
+sp-runtime = { version = "3.0.0", default-features = false }
+sp-session = { version = "3.0.0", default-features = false }
+sp-std = { version = "3.0.0", default-features = false }
+sp-transaction-pool = { version = "3.0.0", default-features = false }
+sp-version = { version = "3.0.0", default-features = false }
+
+frame-system-rpc-runtime-api = { version = "3.0.0", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { version = "3.0.0", default-features = false }
+
+frame-benchmarking = { version = "3.0.0", default-features = false, optional = true }
+frame-system-benchmarking = { version = "3.0.0", default-features = false, optional = true }
+hex-literal = { version = "0.3.1", optional = true }
+
+traits = { version = "3.0.0", default-features = false, path = "../pallets/traits", package = "xpmrl-traits" }
+tokens = { version = "3.0.0", default-features = false, path = "../pallets/tokens", package = "xpmrl-tokens" }
+
+[build-dependencies]
+substrate-wasm-builder = { version = "4.0.0" }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"frame-executive/std",
+	"frame-support/std",
+	"pallet-aura/std",
+	"pallet-balances/std",
+	"pallet-grandpa/std",
+	"pallet-randomness-collective-flip/std",
+	"pallet-sudo/std",
+	"pallet-timestamp/std",
+	"pallet-transaction-payment/std",
+	"pallet-transaction-payment-rpc-runtime-api/std",
+	"serde",
+	"sp-api/std",
+	"sp-block-builder/std",
+	"sp-consensus-aura/std",
+	"sp-core/std",
+	"sp-inherents/std",
+	"sp-offchain/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-std/std",
+	"sp-transaction-pool/std",
+	"sp-version/std",
+	"frame-system/std",
+	"frame-system-rpc-runtime-api/std",
+	"tokens/std",
+	"traits/std",
+]
+runtime-benchmarks = [
+	"sp-runtime/runtime-benchmarks",
+	"frame-benchmarking",
+	"frame-support/runtime-benchmarks",
+	"frame-system-benchmarking",
+	"hex-literal",
+	"frame-system/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-timestamp/runtime-benchmarks",
+]
