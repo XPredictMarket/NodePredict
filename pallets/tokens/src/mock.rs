@@ -1,10 +1,11 @@
 use crate as tokens;
-use frame_support::parameter_types;
+use frame_support::{parameter_types, traits::GenesisBuild};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
+	ModuleId,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -19,7 +20,7 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		TokensModule: tokens::{Module, Call, Storage, Event<T>},
+		TokensModule: tokens::{Module, Call, Config<T>, Storage, Event<T>},
 		PalletBalances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 );
@@ -70,6 +71,7 @@ impl pallet_balances::Config for Test {
 
 parameter_types! {
 	pub const NativeCurrencyId: CurrencyId = 0;
+	pub const TokensModuleId: ModuleId = ModuleId(*b"xptokens");
 }
 
 impl tokens::Config for Test {
@@ -77,16 +79,19 @@ impl tokens::Config for Test {
 	type CurrencyId = CurrencyId;
 	type Currency = PalletBalances;
 	type NativeCurrencyId = NativeCurrencyId;
+	type ModuleId = TokensModuleId;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let mut t = system::GenesisConfig::default()
 		.build_storage::<Test>()
 		.unwrap();
-	let genesis = pallet_balances::GenesisConfig::<Test> {
+	let balance_genesis = pallet_balances::GenesisConfig::<Test> {
 		balances: vec![(1, 100), (2, 200)],
 	};
-	genesis.assimilate_storage(&mut t).unwrap();
+	balance_genesis.assimilate_storage(&mut t).unwrap();
+	let tokens_genesis = tokens::GenesisConfig::<Test>::default();
+	tokens_genesis.assimilate_storage(&mut t).unwrap();
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
 	ext

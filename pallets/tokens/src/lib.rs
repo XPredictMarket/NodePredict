@@ -15,7 +15,7 @@ use frame_support::{
 	traits::Get,
 	traits::{Currency, ExistenceRequirement, ReservableCurrency},
 };
-use sp_runtime::traits::{CheckedAdd, CheckedSub, One, Zero};
+use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedSub, One, Zero};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 use xpmrl_traits::tokens::Tokens;
 
@@ -28,7 +28,7 @@ pub mod pallet {
 		traits::{Currency, ReservableCurrency},
 	};
 	use frame_system::pallet_prelude::*;
-	use sp_runtime::traits::*;
+	use sp_runtime::{traits::*, ModuleId};
 	use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, vec::Vec};
 
 	#[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode)]
@@ -56,6 +56,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type NativeCurrencyId: Get<CurrencyIdOf<Self>>;
+
+		#[pallet::constant]
+		type ModuleId: Get<ModuleId>;
 	}
 
 	#[pallet::pallet]
@@ -65,6 +68,43 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn current_currency_id)]
 	pub type CurrentCurrencyId<T: Config> = StorageValue<_, T::CurrencyId>;
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig<T: Config> {
+		pub tokens: Vec<(Vec<u8>, u8)>,
+		pub balances: Vec<(T::AccountId, BalanceType<T>)>,
+	}
+
+	#[cfg(feature = "std")]
+	impl<T: Config> Default for GenesisConfig<T> {
+		fn default() -> Self {
+			Self {
+				tokens: Vec::new(),
+				balances: Vec::new(),
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+		fn build(&self) {
+			let f = || -> Result<(), DispatchError> {
+				let id = T::NativeCurrencyId::get()
+					.checked_add(&One::one())
+					.ok_or(Error::<T>::CurrencyIdOverflow)?;
+				CurrentCurrencyId::<T>::put(id);
+				for (symbol, decimals) in &self.tokens {
+					let currency_id =
+						Pallet::<T>::inner_new_asset(symbol.clone(), symbol.clone(), *decimals)?;
+					for (to, number) in &self.balances {
+						Pallet::<T>::inner_mint_to(currency_id, to, *number)?;
+					}
+				}
+				Ok(())
+			};
+			if let Err(_) = f() {}
+		}
+	}
 
 	#[pallet::storage]
 	#[pallet::getter(fn currencies)]
@@ -301,6 +341,21 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	pub fn ensure_currency_id(currency_id: T::CurrencyId) -> Result<(), DispatchError> {
+		if currency_id != T::NativeCurrencyId::get() {
+			ensure!(
+				Currencies::<T>::contains_key(currency_id),
+				Error::<T>::CurrencyIdNotExist
+			);
+		}
+		Ok(())
+	}
+
+	pub fn inner_decimals(currency_id: T::CurrencyId) -> Result<u8, DispatchError> {
+		let xrc = Currencies::<T>::get(currency_id).ok_or(Error::<T>::CurrencyIdNotExist)?;
+		Ok(xrc.decimals)
+	}
+
 	pub fn inner_new_asset(
 		name: Vec<u8>,
 		symbol: Vec<u8>,
@@ -321,10 +376,7 @@ impl<T: Config> Pallet<T> {
 		to: &T::AccountId,
 		number: BalanceType<T>,
 	) -> Result<BalanceType<T>, DispatchError> {
-		ensure!(
-			Currencies::<T>::contains_key(currency_id),
-			Error::<T>::CurrencyIdNotExist
-		);
+		Self::ensure_currency_id(currency_id)?;
 		if currency_id == T::NativeCurrencyId::get() {
 			let old_balance = T::Currency::free_balance(&to);
 			let new_balance = old_balance
@@ -367,40 +419,42 @@ impl<T: Config> Pallet<T> {
 		from: &T::AccountId,
 		number: BalanceType<T>,
 	) -> Result<BalanceType<T>, DispatchError> {
-		ensure!(
-			currency_id != T::NativeCurrencyId::get(),
-			Error::<T>::CannotBurnNativeAsset
-		);
-		ensure!(
-			Currencies::<T>::contains_key(currency_id),
-			Error::<T>::CurrencyIdNotExist
-		);
-		let actual_number = BalanceOf::<T>::try_mutate(
-			&from,
-			currency_id,
-			|balance| -> Result<BalanceType<T>, DispatchError> {
-				let old_balance = balance.unwrap_or(Zero::zero());
-				let new_balance = old_balance
-					.checked_sub(&number)
-					.ok_or(Error::<T>::InsufficientBalance)?;
-				*balance = Some(new_balance);
-				Ok(old_balance
-					.checked_sub(&new_balance)
-					.unwrap_or(Zero::zero()))
-			},
-		)?;
-		let _ = TotalSupply::<T>::try_mutate_exists(
-			currency_id,
-			|total_supply| -> Result<BalanceType<T>, DispatchError> {
-				let old_total = total_supply.ok_or(Error::<T>::CurrencyIdNotExist)?;
-				let new_total = old_total
-					.checked_sub(&actual_number)
-					.ok_or(Error::<T>::BalanceOverflow)?;
-				*total_supply = Some(new_total);
-				Ok(old_total.checked_sub(&new_total).unwrap_or(Zero::zero()))
-			},
-		)?;
-		Ok(actual_number)
+		Self::ensure_currency_id(currency_id)?;
+		if currency_id == T::NativeCurrencyId::get() {
+			let old_balance = T::Currency::free_balance(&from);
+			let new_balance = old_balance
+				.checked_sub(&number)
+				.ok_or(Error::<T>::BalanceOverflow)?;
+			T::Currency::make_free_balance_be(&from, new_balance);
+			Ok(number)
+		} else {
+			let actual_number = BalanceOf::<T>::try_mutate(
+				&from,
+				currency_id,
+				|balance| -> Result<BalanceType<T>, DispatchError> {
+					let old_balance = balance.unwrap_or(Zero::zero());
+					let new_balance = old_balance
+						.checked_sub(&number)
+						.ok_or(Error::<T>::InsufficientBalance)?;
+					*balance = Some(new_balance);
+					Ok(old_balance
+						.checked_sub(&new_balance)
+						.unwrap_or(Zero::zero()))
+				},
+			)?;
+			let _ = TotalSupply::<T>::try_mutate_exists(
+				currency_id,
+				|total_supply| -> Result<BalanceType<T>, DispatchError> {
+					let old_total = total_supply.ok_or(Error::<T>::CurrencyIdNotExist)?;
+					let new_total = old_total
+						.checked_sub(&actual_number)
+						.ok_or(Error::<T>::BalanceOverflow)?;
+					*total_supply = Some(new_total);
+					Ok(old_total.checked_sub(&new_total).unwrap_or(Zero::zero()))
+				},
+			)?;
+			Ok(actual_number)
+		}
 	}
 
 	pub fn inner_transfer_from(
@@ -409,14 +463,7 @@ impl<T: Config> Pallet<T> {
 		to: &T::AccountId,
 		number: BalanceType<T>,
 	) -> Result<BalanceType<T>, DispatchError> {
-		ensure!(
-			Currencies::<T>::contains_key(currency_id),
-			Error::<T>::CurrencyIdNotExist
-		);
-		ensure!(
-			BalanceOf::<T>::get(&from, currency_id).unwrap_or(Zero::zero()) >= number,
-			Error::<T>::InsufficientBalance
-		);
+		Self::ensure_currency_id(currency_id)?;
 		if currency_id == T::NativeCurrencyId::get() {
 			ensure!(
 				T::Currency::free_balance(&from) >= number,
@@ -425,6 +472,10 @@ impl<T: Config> Pallet<T> {
 			T::Currency::transfer(&from, &to, number, ExistenceRequirement::AllowDeath)?;
 			Ok(number)
 		} else {
+			ensure!(
+				BalanceOf::<T>::get(&from, currency_id).unwrap_or(Zero::zero()) >= number,
+				Error::<T>::InsufficientBalance
+			);
 			let actual_number = BalanceOf::<T>::try_mutate_exists(
 				&from,
 				currency_id,
@@ -459,10 +510,7 @@ impl<T: Config> Pallet<T> {
 		spender: &T::AccountId,
 		number: BalanceType<T>,
 	) -> Result<BalanceType<T>, DispatchError> {
-		ensure!(
-			Currencies::<T>::contains_key(currency_id),
-			Error::<T>::CurrencyIdNotExist
-		);
+		Self::ensure_currency_id(currency_id)?;
 		ensure!(owner != spender, Error::<T>::ApproveSelf);
 		Allowance::<T>::try_mutate(
 			owner,
@@ -561,6 +609,14 @@ impl<T: Config> Pallet<T> {
 			Ok(actual_number)
 		}
 	}
+
+	pub fn inner_balance_of(currency_id: T::CurrencyId, who: &T::AccountId) -> BalanceType<T> {
+		if currency_id == T::NativeCurrencyId::get() {
+			T::Currency::free_balance(&who)
+		} else {
+			Self::balance_of(&who, currency_id).unwrap_or(Zero::zero())
+		}
+	}
 }
 
 impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
@@ -573,6 +629,14 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
 		decimals: u8,
 	) -> Result<Self::CurrencyId, DispatchError> {
 		Self::inner_new_asset(name, symbol, decimals)
+	}
+
+	fn decimals(currency_id: Self::CurrencyId) -> Result<u8, DispatchError> {
+		Self::inner_decimals(currency_id)
+	}
+
+	fn balance(currency_id: Self::CurrencyId, account: &T::AccountId) -> Self::Balance {
+		Self::inner_balance_of(currency_id, &account)
 	}
 
 	fn transfer(
@@ -618,5 +682,39 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
 
 	fn reserved_balance(currency_id: Self::CurrencyId, who: &T::AccountId) -> Self::Balance {
 		Self::reserve_of(&who, currency_id).unwrap_or(Zero::zero())
+	}
+
+	fn donate(
+		currency_id: Self::CurrencyId,
+		from: &T::AccountId,
+		value: Self::Balance,
+	) -> Result<Self::Balance, DispatchError> {
+		let module_account: T::AccountId = T::ModuleId::get().into_account();
+		Self::inner_transfer_from(currency_id, &from, &module_account, value)
+	}
+
+	fn mint_donate(
+		currency_id: Self::CurrencyId,
+		value: Self::Balance,
+	) -> Result<Self::Balance, DispatchError> {
+		let module_account: T::AccountId = T::ModuleId::get().into_account();
+		<Self as Tokens<T::AccountId>>::mint(currency_id, &module_account, value)
+	}
+
+	fn burn_donate(
+		currency_id: Self::CurrencyId,
+		value: Self::Balance,
+	) -> Result<Self::Balance, DispatchError> {
+		let module_account: T::AccountId = T::ModuleId::get().into_account();
+		<Self as Tokens<T::AccountId>>::burn(currency_id, &module_account, value)
+	}
+
+	fn appropriation(
+		currency_id: Self::CurrencyId,
+		to: &T::AccountId,
+		value: Self::Balance,
+	) -> Result<Self::Balance, DispatchError> {
+		let module_account: T::AccountId = T::ModuleId::get().into_account();
+		Self::inner_transfer_from(currency_id, &module_account, &to, value)
 	}
 }
