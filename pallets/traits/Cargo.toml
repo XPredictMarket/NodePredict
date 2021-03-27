@@ -2,11 +2,10 @@
 authors = ['XPredictMarket']
 edition = '2018'
 name = 'xpmrl-traits'
-version = "3.0.0"
+version = "0.1.0"
 license = "Apache-2.0"
 repository = "https://github.com/XPredictMarket/NodePredict"
 description = "FRAME pallet template for defining custom runtime logic."
-readme = "README.md"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]

@@ -825,6 +825,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
 
 [[package]]
+name = "couple-info-rpc"
+version = "0.1.0"
+dependencies = [
+ "couple-info-runtime-api",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-rpc",
+ "sp-runtime",
+ "xpmrl-traits",
+]
+
+[[package]]
+name = "couple-info-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
+ "xpmrl-traits",
+]
+
+[[package]]
 name = "cpp_demangle"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3528,6 +3557,7 @@ dependencies = [
 name = "node-predict"
 version = "3.0.0"
 dependencies = [
+ "couple-info-rpc",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "jsonrpc-core",
@@ -4344,8 +4374,9 @@ checksum = "ac74c624d6b2d21f425f752262f42188365d7b8ff1aff74c82e45136510a4857"
 
 [[package]]
 name = "predict-runtime"
-version = "3.0.0"
+version = "0.1.0"
 dependencies = [
+ "couple-info-runtime-api",
  "frame-benchmarking",
  "frame-executive",
  "frame-support",
@@ -4375,8 +4406,9 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
+ "xpmrl-couple",
+ "xpmrl-proposals",
  "xpmrl-tokens",
- "xpmrl-traits",
 ]
 
 [[package]]
@@ -8388,8 +8420,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "xpmrl-couple"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "num-traits",
+ "pallet-balances",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xpmrl-proposals",
+ "xpmrl-tokens",
+ "xpmrl-traits",
+]
+
+[[package]]
+name = "xpmrl-proposals"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xpmrl-traits",
+]
+
+[[package]]
 name = "xpmrl-tokens"
-version = "3.0.0"
+version = "0.1.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -8405,7 +8471,7 @@ dependencies = [
 
 [[package]]
 name = "xpmrl-traits"
-version = "3.0.0"
+version = "0.1.0"
 dependencies = [
  "frame-support",
  "parity-scale-codec",

@@ -1,6 +1,6 @@
 [package]
 name = "predict-runtime"
-version = "3.0.0"
+version = "0.1.0"
 authors = ["XPredictMarket"]
 edition = "2018"
 license = "Apache-2.0"
@@ -42,8 +42,10 @@ frame-benchmarking = { version = "3.0.0", default-features = false, optional = t
 frame-system-benchmarking = { version = "3.0.0", default-features = false, optional = true }
 hex-literal = { version = "0.3.1", optional = true }
 
-traits = { version = "3.0.0", default-features = false, path = "../pallets/traits", package = "xpmrl-traits" }
-tokens = { version = "3.0.0", default-features = false, path = "../pallets/tokens", package = "xpmrl-tokens" }
+proposals = { version = "0.1.0", default-features = false, path = "../pallets/proposals", package = "xpmrl-proposals" }
+couple = { version = "0.1.0", default-features = false, path = "../pallets/couple", package = "xpmrl-couple" }
+couple-info-runtime-api = { version = "0.1.0", path = "../pallets/couple/runtime-api", default-features = false }
+tokens = { version = "0.1.0", default-features = false, path = "../pallets/tokens", package = "xpmrl-tokens" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "4.0.0" }
@@ -76,8 +78,10 @@ std = [
 	"sp-version/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
+	"couple/std",
+	"couple-info-runtime-api/std",
+	"proposals/std",
 	"tokens/std",
-	"traits/std",
 ]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",

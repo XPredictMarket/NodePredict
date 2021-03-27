@@ -4,7 +4,7 @@ use predict_runtime::{
 };
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{sr25519, Pair, Public};
+use sp_core::{crypto::Ss58Codec, sr25519, Pair, Public};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::traits::{IdentifyAccount, Verify};
 
@@ -29,6 +29,14 @@ where
 	AccountPublic: From<<TPublic::Pair as Pair>::Public>,
 {
 	AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
+}
+
+pub fn get_account_id_from_address(address: &str) -> AccountId {
+	if let Ok(account) = AccountId::from_ss58check(address) {
+		account
+	} else {
+		Default::default()
+	}
 }
 
 /// Generate an Aura authority key.
@@ -58,6 +66,9 @@ pub fn development_config() -> Result<ChainSpec, String> {
 					get_account_id_from_seed::<sr25519::Public>("Bob"),
 					get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
 					get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+					get_account_id_from_address("5DLqpJLQBSytLM2Zjgn9Ab8tcdkrvteSfx6yK3vTiwrEuFnp"),
+					get_account_id_from_address("5Fk7dfYpuWT8sK8BMcDYDHaz2H6ZuaJpwAHajURwkzAmRX7C"),
+					get_account_id_from_address("5CqffqfKmUmi9hBEsM8PVkAkw8PUYtjMPi1zrbrgsKa9u5Ui"),
 				],
 				true,
 				vec![("DOT", 8), ("USDT", 6), ("BTC", 8), ("ETH", 18)],
@@ -68,6 +79,24 @@ pub fn development_config() -> Result<ChainSpec, String> {
 					),
 					(
 						get_account_id_from_seed::<sr25519::Public>("Bob"),
+						100000000000000000000000000,
+					),
+					(
+						get_account_id_from_address(
+							"5DLqpJLQBSytLM2Zjgn9Ab8tcdkrvteSfx6yK3vTiwrEuFnp",
+						),
+						100000000000000000000000000,
+					),
+					(
+						get_account_id_from_address(
+							"5Fk7dfYpuWT8sK8BMcDYDHaz2H6ZuaJpwAHajURwkzAmRX7C",
+						),
+						100000000000000000000000000,
+					),
+					(
+						get_account_id_from_address(
+							"5CqffqfKmUmi9hBEsM8PVkAkw8PUYtjMPi1zrbrgsKa9u5Ui",
+						),
 						100000000000000000000000000,
 					),
 				],
@@ -119,6 +148,9 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 					get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
 					get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
 					get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+					get_account_id_from_address("5DLqpJLQBSytLM2Zjgn9Ab8tcdkrvteSfx6yK3vTiwrEuFnp"),
+					get_account_id_from_address("5Fk7dfYpuWT8sK8BMcDYDHaz2H6ZuaJpwAHajURwkzAmRX7C"),
+					get_account_id_from_address("5CqffqfKmUmi9hBEsM8PVkAkw8PUYtjMPi1zrbrgsKa9u5Ui"),
 				],
 				true,
 				vec![("DOT", 8), ("USDT", 6), ("BTC", 8), ("ETH", 18)],
@@ -129,6 +161,24 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 					),
 					(
 						get_account_id_from_seed::<sr25519::Public>("Bob"),
+						100000000000000000000000000,
+					),
+					(
+						get_account_id_from_address(
+							"5DLqpJLQBSytLM2Zjgn9Ab8tcdkrvteSfx6yK3vTiwrEuFnp",
+						),
+						100000000000000000000000000,
+					),
+					(
+						get_account_id_from_address(
+							"5Fk7dfYpuWT8sK8BMcDYDHaz2H6ZuaJpwAHajURwkzAmRX7C",
+						),
+						100000000000000000000000000,
+					),
+					(
+						get_account_id_from_address(
+							"5CqffqfKmUmi9hBEsM8PVkAkw8PUYtjMPi1zrbrgsKa9u5Ui",
+						),
 						100000000000000000000000000,
 					),
 				],

@@ -41,7 +41,11 @@ use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
+pub use couple;
+pub use couple::pallet::Proposal;
+use couple_info_runtime_api::ProposalInfo;
 /// Import the template pallet.
+pub use proposals;
 pub use tokens;
 
 /// An index to a block.
@@ -219,9 +223,11 @@ parameter_types! {
 	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
 }
 
+pub type Moment = u64;
+
 impl pallet_timestamp::Config for Runtime {
 	/// A timestamp: milliseconds since the unix epoch.
-	type Moment = u64;
+	type Moment = Moment;
 	type OnTimestampSet = Aura;
 	type MinimumPeriod = MinimumPeriod;
 	type WeightInfo = ();
@@ -260,6 +266,31 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
+pub type ProposalId = u32;
+type VersionId = u32;
+pub type CategoryId = u32;
+
+parameter_types! {
+	pub const EarnTradingFeeDecimals: u8 = 4;
+	pub const CurrentLiquidateVersionId: VersionId = 1;
+}
+
+impl proposals::Config for Runtime {
+	type Event = Event;
+	type Time = Timestamp;
+	type ProposalId = ProposalId;
+	type CategoryId = CategoryId;
+	type VersionId = VersionId;
+	type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
+	type LiquidityPool = Couple;
+	type CurrentLiquidateVersionId = CurrentLiquidateVersionId;
+}
+
+impl couple::Config for Runtime {
+	type Event = Event;
+	type Tokens = Tokens;
+}
+
 parameter_types! {
 	pub const NativeCurrencyId: CurrencyId = 0;
 	pub const TokensModuleId: ModuleId = ModuleId(*b"xptokens");
@@ -291,6 +322,8 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the template pallet in the runtime.
+		Proposals: proposals::{Module, Call, Storage, Event<T>},
+		Couple: couple::{Module, Call, Storage, Event<T>},
 		Tokens: tokens::{Module, Call, Config<T>, Storage, Event<T>},
 	}
 );
@@ -455,6 +488,25 @@ impl_runtime_apis! {
 			len: u32,
 		) -> pallet_transaction_payment::FeeDetails<Balance> {
 			TransactionPayment::query_fee_details(uxt, len)
+		}
+	}
+
+	impl couple_info_runtime_api::CoupleInfoApi<Block, ProposalId, CategoryId, Balance, Moment> for Runtime {
+		fn get_proposal_info(proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment> {
+			let proposal = Couple::proposals(proposal_id).unwrap_or(Default::default());
+			let optional = Couple::proposal_total_optional_market(proposal_id).unwrap_or(Default::default());
+			let close_time = Couple::proposal_close_time(proposal_id).unwrap_or(Default::default());
+			let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or(Default::default());
+
+			ProposalInfo {
+				title: proposal.title,
+				category_id: proposal.category_id,
+				detail: proposal.detail,
+				yes: optional.0,
+				no: optional.1,
+				close_time,
+				liquidity,
+			}
 		}
 	}
 

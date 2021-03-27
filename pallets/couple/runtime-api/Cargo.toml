@@ -1,0 +1,26 @@
+[package]
+authors = ['XPredictMarket']
+edition = '2018'
+name = "couple-info-runtime-api"
+version = "0.1.0"
+license = "Apache-2.0"
+repository = "https://github.com/XPredictMarket/NodePredict"
+description = "FRAME pallet template for defining custom runtime logic."
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+sp-api = { version = '3.0.0', default-features = false}
+sp-std = { version = '3.0.0', default-features = false}
+sp-runtime = { version = '3.0.0', default-features = false}
+xpmrl-traits = { version = "0.1.0", default-features = false, path = "../../traits" }
+serde = { version = "1.0.101" }
+
+[features]
+default = ["std"]
+std = [
+	'codec/std',
+	"sp-api/std",
+	"sp-std/std",
+	"sp-runtime/std",
+	'xpmrl-traits/std'
+]
