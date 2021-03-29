@@ -15,9 +15,9 @@ fn befor_test() -> u128 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
     let now = now.as_secs() as u32 + 1_000_000;
-    let currency_id = 1;
-    let fee_rate = 300;
-    let number = 100;
+    let currency_id: u32 = 1;
+    let fee_rate: u32 = 2000;
+    let number = 100000;
     assert_ok!(XPMRLProposals::new_proposal(
         Origin::signed(1),
         proposal.title.clone(),
@@ -99,13 +99,69 @@ fn test_add_liquidity() {
 fn test_remove_liquidity() {
     new_test_ext().execute_with(|| {
         let number = befor_test();
+        assert_ok!(XPMRLProposals::set_status(
+            Origin::root(),
+            0,
+            ProposalStatus::FormalPrediction
+        ));
+        assert_ok!(CoupleModule::buy(Origin::signed(2), 0, 3, 31250));
+        assert_noop!(
+            CoupleModule::remove_liquidity(Origin::signed(1), 0, number),
+            Error::<Test>::ProposalAbnormalState
+        );
+        assert_ok!(CoupleModule::set_result(Origin::root(), 0, 3));
+        assert_noop!(
+            CoupleModule::remove_liquidity(Origin::signed(1), 1, number),
+            Error::<Test>::ProposalIdNotExist
+        );
+        assert_ok!(CoupleModule::remove_liquidity(Origin::signed(1), 0, number));
+
+        let remove_liquidity_event = Event::couple(crate::Event::RemoveLiquidity(1, 0, 1, number));
+        assert!(System::events()
+            .iter()
+            .any(|record| record.event == remove_liquidity_event));
+
+        assert_eq!(XPMRLTokens::balance_of(1, 1), Some(86250));
+        assert_eq!(XPMRLTokens::balance_of(1, 4), Some(45000));
+        assert_eq!(XPMRLTokens::balance_of(2, 3), Some(45000));
     });
 }
 
 #[test]
 fn test_buy() {
     new_test_ext().execute_with(|| {
-        let number = befor_test();
+        let _ = befor_test();
+        assert_noop!(
+            CoupleModule::buy(Origin::signed(2), 0, 3, 31250),
+            Error::<Test>::ProposalAbnormalState
+        );
+        assert_noop!(
+            CoupleModule::buy(Origin::signed(2), 1, 3, 31250),
+            Error::<Test>::ProposalIdNotExist
+        );
+        assert_ok!(XPMRLProposals::set_status(
+            Origin::root(),
+            0,
+            ProposalStatus::FormalPrediction
+        ));
+        assert_noop!(
+            CoupleModule::buy(Origin::signed(2), 0, 5, 31250),
+            Error::<Test>::CurrencyIdNotFound
+        );
+        assert_ok!(CoupleModule::buy(Origin::signed(2), 0, 3, 31250));
+
+        let buy_event = Event::couple(crate::Event::Buy(2, 0, 3, 25000));
+        assert!(System::events()
+            .iter()
+            .any(|record| record.event == buy_event));
+
+        assert_eq!(XPMRLTokens::balance_of(2, 3), Some(45000));
+        assert_eq!(
+            CoupleModule::proposal_total_optional_market(0),
+            Some((80000, 125000))
+        );
+        assert_eq!(CoupleModule::proposal_total_market_fee(0), Some(6250));
+        assert_eq!(CoupleModule::proposal_account_info(0, 2), Some(25000));
     });
 }
 
@@ -113,12 +169,44 @@ fn test_buy() {
 fn test_sell() {
     new_test_ext().execute_with(|| {
         let number = befor_test();
+        assert_noop!(
+            CoupleModule::sell(Origin::signed(2), 0, 3, 255),
+            Error::<Test>::ProposalAbnormalState
+        );
+        assert_noop!(
+            CoupleModule::sell(Origin::signed(2), 1, 3, 255),
+            Error::<Test>::ProposalIdNotExist
+        );
+        assert_ok!(XPMRLProposals::set_status(
+            Origin::root(),
+            0,
+            ProposalStatus::FormalPrediction
+        ));
+        assert_noop!(
+            CoupleModule::sell(Origin::signed(2), 0, 5, 255),
+            Error::<Test>::CurrencyIdNotFound
+        );
+        assert_ok!(CoupleModule::buy(Origin::signed(2), 0, 3, 31250));
+        assert_ok!(CoupleModule::sell(Origin::signed(2), 0, 3, 45000));
+
+        let sell_event = Event::couple(crate::Event::Sell(2, 0, 3, 20000));
+        assert!(System::events()
+            .iter()
+            .any(|record| record.event == sell_event));
+
+        assert_eq!(XPMRLTokens::balance_of(2, 3), Some(0));
+        assert_eq!(
+            CoupleModule::proposal_total_optional_market(0),
+            Some((number, number))
+        );
+        assert_eq!(CoupleModule::proposal_total_market_fee(0), Some(11250));
+        assert_eq!(CoupleModule::proposal_account_info(0, 2), Some(0));
     });
 }
 
 #[test]
 fn test_retrieval() {
     new_test_ext().execute_with(|| {
-        let number = befor_test();
+        let _number = befor_test();
     });
 }

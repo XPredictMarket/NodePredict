@@ -40,7 +40,9 @@
         "detail": "Text",
         "liquidity": "BalanceOf",
         "no": "BalanceOf",
+        "noName": "Text",
         "yes": "BalanceOf",
+        "yesName": "Text",
         "title": "Text"
     }
 }
