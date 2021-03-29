@@ -31,7 +31,7 @@ pub mod pallet {
 	use sp_runtime::{traits::*, ModuleId};
 	use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, vec::Vec};
 
-	#[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode)]
+	#[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, Default)]
 	pub struct PRC20 {
 		pub name: Vec<u8>,
 		pub symbol: Vec<u8>,

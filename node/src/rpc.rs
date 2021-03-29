@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use predict_runtime::{opaque::Block, AccountId, Balance, CategoryId, Index, Moment, ProposalId};
+use predict_runtime::{opaque::Block, AccountId, Balance, CategoryId, Index, Moment, VersionId, ProposalId};
 pub use sc_rpc_api::DenyUnsafe;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
@@ -32,7 +32,7 @@ where
 	C: Send + Sync + 'static,
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
-	C::Api: couple_info_rpc::CoupleInfoRuntimeApi<Block, ProposalId, CategoryId, Balance, Moment>,
+	C::Api: couple_info_rpc::CoupleInfoRuntimeApi<Block, VersionId, ProposalId, CategoryId, Balance, Moment>,
 	C::Api: BlockBuilder<Block>,
 	P: TransactionPool + 'static,
 {

@@ -47,6 +47,7 @@ use couple_info_runtime_api::ProposalInfo;
 /// Import the template pallet.
 pub use proposals;
 pub use tokens;
+use traits::ProposalStatus;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -267,7 +268,7 @@ impl pallet_sudo::Config for Runtime {
 }
 
 pub type ProposalId = u32;
-type VersionId = u32;
+pub type VersionId = u32;
 pub type CategoryId = u32;
 
 parameter_types! {
@@ -491,21 +492,28 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl couple_info_runtime_api::CoupleInfoApi<Block, ProposalId, CategoryId, Balance, Moment> for Runtime {
-		fn get_proposal_info(proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment> {
+	impl couple_info_runtime_api::CoupleInfoApi<Block, VersionId, ProposalId, CategoryId, Balance, Moment> for Runtime {
+		fn get_proposal_info(_: VersionId, proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment> {
 			let proposal = Couple::proposals(proposal_id).unwrap_or(Default::default());
 			let optional = Couple::proposal_total_optional_market(proposal_id).unwrap_or(Default::default());
 			let close_time = Couple::proposal_close_time(proposal_id).unwrap_or(Default::default());
 			let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or(Default::default());
+			let pairs = Couple::pool_pairs(proposal_id).unwrap_or(Default::default());
+			let yes_name = Tokens::currencies(pairs.0).unwrap_or(Default::default()).name;
+			let no_name = Tokens::currencies(pairs.1).unwrap_or(Default::default()).name;
+			let status = Proposals::proposal_status(proposal_id).unwrap_or(ProposalStatus::OriginalPrediction);
 
 			ProposalInfo {
 				title: proposal.title,
 				category_id: proposal.category_id,
 				detail: proposal.detail,
 				yes: optional.0,
+				yes_name,
 				no: optional.1,
+				no_name,
 				close_time,
 				liquidity,
+				status,
 			}
 		}
 	}

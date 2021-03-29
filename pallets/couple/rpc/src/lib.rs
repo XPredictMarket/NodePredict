@@ -11,13 +11,14 @@ use sp_runtime::{
 };
 use std::sync::Arc;
 #[rpc]
-pub trait CoupleInfoApi<BlockHash, ProposalId, CategoryId, Balance, Moment>
+pub trait CoupleInfoApi<BlockHash, VersionId, ProposalId, CategoryId, Balance, Moment>
 where
 	Balance: MaybeDisplay + MaybeFromStr,
 {
 	#[rpc(name = "proposal_getProposalInfo")]
 	fn get_proposal_info(
 		&self,
+		version_id: VersionId,
 		proposal_id: ProposalId,
 		at: Option<BlockHash>,
 	) -> Result<ProposalInfo<CategoryId, Balance, Moment>>;
@@ -37,15 +38,16 @@ impl<C, M> CoupleInfo<C, M> {
 	}
 }
 
-impl<C, Block, ProposalId, CategoryId, Balance, Moment>
-	CoupleInfoApi<<Block as BlockT>::Hash, ProposalId, CategoryId, Balance, Moment>
+impl<C, Block, VersionId, ProposalId, CategoryId, Balance, Moment>
+	CoupleInfoApi<<Block as BlockT>::Hash, VersionId, ProposalId, CategoryId, Balance, Moment>
 	for CoupleInfo<C, Block>
 where
 	Block: BlockT,
 	C: Send + Sync + 'static,
 	C: ProvideRuntimeApi<Block>,
 	C: HeaderBackend<Block>,
-	C::Api: CoupleInfoRuntimeApi<Block, ProposalId, CategoryId, Balance, Moment>,
+	C::Api: CoupleInfoRuntimeApi<Block, VersionId, ProposalId, CategoryId, Balance, Moment>,
+	VersionId: Codec,
 	ProposalId: Codec,
 	CategoryId: Codec,
 	Balance: Codec + MaybeDisplay + MaybeFromStr,
@@ -53,6 +55,7 @@ where
 {
 	fn get_proposal_info(
 		&self,
+		version_id: VersionId,
 		proposal_id: ProposalId,
 		at: Option<<Block as BlockT>::Hash>,
 	) -> Result<ProposalInfo<CategoryId, Balance, Moment>> {
@@ -61,7 +64,7 @@ where
 			// If the block hash is not supplied assume the best block.
 			self.client.info().best_hash));
 
-		let runtime_api_result = api.get_proposal_info(&at, proposal_id);
+		let runtime_api_result = api.get_proposal_info(&at, version_id, proposal_id);
 		runtime_api_result.map_err(|e| RpcError {
 			code: ErrorCode::ServerError(9876), // No real reason for this value
 			message: "Something wrong".into(),

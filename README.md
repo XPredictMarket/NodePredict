@@ -33,6 +33,15 @@
             "End": "Null"
         }
     },
-    "Status": "ProposalStatus"
+    "Status": "ProposalStatus",
+    "ProposalInfo": {
+        "categoryId": "CategoryId",
+        "closeTime": "MomentOf",
+        "detail": "Text",
+        "liquidity": "BalanceOf",
+        "no": "BalanceOf",
+        "yes": "BalanceOf",
+        "title": "Text"
+    }
 }
 ```

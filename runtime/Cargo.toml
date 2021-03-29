@@ -46,6 +46,7 @@ proposals = { version = "0.1.0", default-features = false, path = "../pallets/pr
 couple = { version = "0.1.0", default-features = false, path = "../pallets/couple", package = "xpmrl-couple" }
 couple-info-runtime-api = { version = "0.1.0", path = "../pallets/couple/runtime-api", default-features = false }
 tokens = { version = "0.1.0", default-features = false, path = "../pallets/tokens", package = "xpmrl-tokens" }
+traits = { version = "0.1.0", default-features = false, path = "../pallets/traits", package = "xpmrl-traits" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "4.0.0" }
@@ -82,6 +83,7 @@ std = [
 	"couple-info-runtime-api/std",
 	"proposals/std",
 	"tokens/std",
+	"traits/std",
 ]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",

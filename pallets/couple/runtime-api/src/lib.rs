@@ -5,6 +5,7 @@
 use codec::{Codec, Decode, Encode};
 use sp_runtime::traits::{MaybeDisplay, MaybeFromStr};
 use sp_std::vec::Vec;
+use xpmrl_traits::ProposalStatus;
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -43,6 +44,12 @@ pub struct ProposalInfo<CategoryId, Balance, Moment> {
 		serde(deserialize_with = "balance_deserialize_from_string")
 	)]
 	pub yes: Balance,
+	#[cfg_attr(feature = "std", serde(serialize_with = "vec_u8_serialize_as_string"))]
+	#[cfg_attr(
+		feature = "std",
+		serde(deserialize_with = "vec_u8_deserialize_from_string")
+	)]
+	pub yes_name: Vec<u8>,
 	#[cfg_attr(
 		feature = "std",
 		serde(bound(serialize = "Balance: std::fmt::Display"))
@@ -57,6 +64,12 @@ pub struct ProposalInfo<CategoryId, Balance, Moment> {
 		serde(deserialize_with = "balance_deserialize_from_string")
 	)]
 	pub no: Balance,
+	#[cfg_attr(feature = "std", serde(serialize_with = "vec_u8_serialize_as_string"))]
+	#[cfg_attr(
+		feature = "std",
+		serde(deserialize_with = "vec_u8_deserialize_from_string")
+	)]
+	pub no_name: Vec<u8>,
 	pub close_time: Moment,
 	#[cfg_attr(
 		feature = "std",
@@ -72,6 +85,7 @@ pub struct ProposalInfo<CategoryId, Balance, Moment> {
 		serde(deserialize_with = "balance_deserialize_from_string")
 	)]
 	pub liquidity: Balance,
+	pub status: ProposalStatus,
 }
 
 #[cfg(feature = "std")]
@@ -110,12 +124,13 @@ fn vec_u8_deserialize_from_string<'de, D: Deserializer<'de>>(
 }
 
 sp_api::decl_runtime_apis! {
-	pub trait CoupleInfoApi<ProposalId, CategoryId, Balance, Moment> where
+	pub trait CoupleInfoApi<VersionId, ProposalId, CategoryId, Balance, Moment> where
+		VersionId: Codec,
 		ProposalId: Codec,
 		CategoryId: Codec,
 		Balance: Codec + MaybeDisplay + MaybeFromStr,
 		Moment: Codec,
 	{
-		fn get_proposal_info(proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment>;
+		fn get_proposal_info(version_id: VersionId, proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment>;
 	}
 }
