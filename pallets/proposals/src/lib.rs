@@ -205,7 +205,7 @@ impl<T: Config> Pallet<T> {
 			if (diff > _3days.into()
 				&& ProposalStatus::<T>::get(index).unwrap_or(Status::OriginalPrediction)
 					== Status::OriginalPrediction)
-				|| (end >= now)
+				|| (now > end)
 			{
 				Self::set_new_status(index, Status::End)?;
 			}
