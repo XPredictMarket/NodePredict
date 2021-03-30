@@ -50,20 +50,21 @@
 
 ## **RPC**
 
-    ```js
-    const rpc = {
-        proposal: {
-            getProposalInfo: {
-                description: "haha",
-                params: [{
-                    name: "version_id",
-                    type: "VersionId"
-                }, {
-                    name: "proposal_id",
-                    type: "ProposalId"
-                }],
-                type: "ProposalInfo",
-            }
+```js
+const rpc = {
+    proposal: {
+        getProposalInfo: {
+            description: "haha",
+            params: [{
+                name: "version_id",
+                type: "VersionId"
+            }, {
+                name: "proposal_id",
+                type: "ProposalId"
+            }],
+            type: "ProposalInfo",
         }
     }
-    ```
+}
+```
+
