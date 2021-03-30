@@ -207,6 +207,66 @@ fn test_sell() {
 #[test]
 fn test_retrieval() {
     new_test_ext().execute_with(|| {
-        let _number = befor_test();
+        let number = befor_test();
+        assert_noop!(
+            CoupleModule::retrieval(Origin::signed(1), 1),
+            Error::<Test>::ProposalIdNotExist
+        );
+        assert_noop!(
+            CoupleModule::retrieval(Origin::signed(1), 0),
+            Error::<Test>::ProposalAbnormalState
+        );
+        assert_ok!(XPMRLProposals::set_status(
+            Origin::root(),
+            0,
+            ProposalStatus::End
+        ));
+        assert_noop!(
+            CoupleModule::retrieval(Origin::signed(1), 0),
+            Error::<Test>::ProposalNotResult
+        );
+        assert_ok!(XPMRLProposals::set_status(
+            Origin::root(),
+            0,
+            ProposalStatus::FormalPrediction
+        ));
+        assert_ok!(CoupleModule::buy(Origin::signed(2), 0, 3, 31250));
+        assert_ok!(CoupleModule::set_result(Origin::root(), 0, 3));
+        assert_ok!(CoupleModule::remove_liquidity(Origin::signed(1), 0, number));
+        assert_ok!(CoupleModule::retrieval(Origin::signed(1), 0));
+        let retrieval_event = Event::couple(crate::Event::Retrieval(1, 0, 3, 0));
+        assert!(System::events()
+            .iter()
+            .any(|record| record.event == retrieval_event));
+
+        assert_ok!(CoupleModule::retrieval(Origin::signed(2), 0));
+        let retrieval_event = Event::couple(crate::Event::Retrieval(2, 0, 3, 45000));
+        assert!(System::events()
+            .iter()
+            .any(|record| record.event == retrieval_event));
+
+        assert_eq!(XPMRLTokens::balance_of(1, 1), Some(86250));
+        assert_eq!(XPMRLTokens::balance_of(2, 1), Some(45000));
+    });
+}
+
+#[test]
+fn test_set_result() {
+    new_test_ext().execute_with(|| {
+        let _ = befor_test();
+        assert_noop!(
+            CoupleModule::set_result(Origin::root(), 0, 5),
+            Error::<Test>::CurrencyIdNotFound
+        );
+        assert_ok!(CoupleModule::set_result(Origin::root(), 0, 3));
+
+        let set_result_event = Event::couple(crate::Event::SetResult(0, 3));
+        assert!(System::events()
+            .iter()
+            .any(|record| record.event == set_result_event));
+        assert_eq!(
+            XPMRLProposals::proposal_status(0),
+            Some(ProposalStatus::End)
+        );
     });
 }

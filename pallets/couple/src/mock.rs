@@ -133,7 +133,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 			("USDT".as_bytes().to_vec(), 6),
 			("BTC".as_bytes().to_vec(), 8),
 		],
-		balances: vec![(1, 100000), (2, 100000)],
+		balances: vec![(1, 100000), (2, 31250)],
 	};
 	tokens_genesis.assimilate_storage(&mut t).unwrap();
 	let mut ext = sp_io::TestExternalities::new(t);

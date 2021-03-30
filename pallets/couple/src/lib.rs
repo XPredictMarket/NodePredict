@@ -265,10 +265,10 @@ pub mod pallet {
 				let fee = fee
 					.checked_add(&creater_fee)
 					.ok_or(Error::<T>::BalanceOverflow)?;
-				ProposalTotalMarketFee::<T>::try_mutate_exists(
+				ProposalTotalMarketFee::<T>::try_mutate(
 					proposal_id,
 					|item| -> Result<(), DispatchError> {
-						let old_value = item.ok_or(Error::<T>::ProposalIdNotExist)?;
+						let old_value = item.unwrap_or(Zero::zero());
 						let new_value = old_value
 							.checked_sub(&fee)
 							.ok_or(Error::<T>::BalanceOverflow)?;
@@ -492,7 +492,6 @@ pub mod pallet {
 		pub fn retrieval(
 			origin: OriginFor<T>,
 			proposal_id: ProposalIdOf<T>,
-			optional_currency_id: CurrencyIdOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 			let status = Self::get_proposal_status(proposal_id)?;
@@ -502,10 +501,6 @@ pub mod pallet {
 			);
 			let result_id =
 				ProposalResult::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotResult)?;
-			ensure!(
-				optional_currency_id == result_id,
-				Error::<T>::ProposalOptionNotCorrect
-			);
 			let currency_id =
 				ProposalCurrencyId::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
 			let balance = T::Tokens::balance(result_id, &who);
@@ -518,7 +513,7 @@ pub mod pallet {
 			Self::deposit_event(Event::Retrieval(
 				who,
 				proposal_id,
-				optional_currency_id,
+				result_id,
 				balance,
 			));
 			Ok(().into())
@@ -586,8 +581,7 @@ impl<T: Config> Pallet<T> {
 		number: BalanceOf<T>,
 		total_liquid: BalanceOf<T>,
 	) -> Result<BalanceOf<T>, DispatchError> {
-		let market_fee =
-			ProposalTotalMarketFee::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+		let market_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
 		let mul_market_fee = market_fee
 			.checked_mul(&number)
 			.ok_or(Error::<T>::BalanceOverflow)?;
@@ -610,8 +604,7 @@ impl<T: Config> Pallet<T> {
 		let owner = ProposalPallet::<T>::proposal_owner(proposal_id)
 			.ok_or(Error::<T>::ProposalIdNotExist)?;
 		if owner == *who {
-			let market_fee = ProposalTotalMarketFee::<T>::get(proposal_id)
-				.ok_or(Error::<T>::ProposalIdNotExist)?;
+			let market_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
 			let mul_market_fee = market_fee
 				.checked_mul(&90u32.into())
 				.ok_or(Error::<T>::BalanceOverflow)?;
