@@ -116,6 +116,9 @@ pub mod pallet {
 		ProposalIdOverflow,
 		ProposalIdNotExist,
 		StatusMustDiff,
+		CategoryIdNotZero,
+		TokenIdNotZero,
+		CloseTimeMustLargeThanNow,
 	}
 
 	#[pallet::hooks]
@@ -143,6 +146,12 @@ pub mod pallet {
 			detail: Vec<u8>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
+			ensure!(category_id != Zero::zero(), Error::<T>::CategoryIdNotZero);
+			ensure!(currency_id != Zero::zero(), Error::<T>::TokenIdNotZero);
+			ensure!(
+				close_time >= T::Time::now(),
+				Error::<T>::CloseTimeMustLargeThanNow
+			);
 			let proposal_id = Self::with_transaction_result(|| {
 				let proposal_id = Self::inner_new_proposal_v1(
 					&who,
@@ -193,7 +202,7 @@ impl<T: Config> Pallet<T> {
 
 	pub fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
 		let now = T::Time::now();
-		let _3days: u32 = 3 * 24 * 60 * 60;
+		let _3days: u32 = 3 * 24 * 60 * 60 * 1000;
 		let max_id = CurrentProposalId::<T>::get().unwrap_or(Zero::zero());
 		let mut index: <T as Config>::ProposalId = Zero::zero();
 		loop {
@@ -220,7 +229,7 @@ impl<T: Config> Pallet<T> {
 		proposal_id: T::ProposalId,
 		new_status: Status,
 	) -> Result<Status, DispatchError> {
-		ProposalStatus::<T>::try_mutate_exists(
+		ProposalStatus::<T>::try_mutate(
 			proposal_id,
 			|status| -> Result<Status, DispatchError> {
 				let old_status = status.ok_or(Error::<T>::ProposalIdNotExist)?;

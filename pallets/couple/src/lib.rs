@@ -201,7 +201,7 @@ pub mod pallet {
 				T::Tokens::donate(currency_id, &who, number)?;
 				T::Tokens::mint_donate(asset_id_1, number)?;
 				T::Tokens::mint_donate(asset_id_2, number)?;
-				ProposalTotalOptionalMarket::<T>::try_mutate_exists(
+				ProposalTotalOptionalMarket::<T>::try_mutate(
 					proposal_id,
 					|item| -> Result<(), DispatchError> {
 						let (o1, o2) = item.ok_or(Error::<T>::ProposalIdNotExist)?;
@@ -211,7 +211,7 @@ pub mod pallet {
 						Ok(())
 					},
 				)?;
-				ProposalTotalMarketLiquid::<T>::try_mutate_exists(
+				ProposalTotalMarketLiquid::<T>::try_mutate(
 					proposal_id,
 					|item| -> Result<(), DispatchError> {
 						let old_value = item.ok_or(Error::<T>::ProposalIdNotExist)?;
@@ -249,7 +249,7 @@ pub mod pallet {
 				PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
 			Self::with_transaction_result(|| {
 				T::Tokens::burn(liquidate_currency_id, &who, number)?;
-				let total_liquid = ProposalTotalMarketLiquid::<T>::try_mutate_exists(
+				let total_liquid = ProposalTotalMarketLiquid::<T>::try_mutate(
 					proposal_id,
 					|item| -> Result<BalanceOf<T>, DispatchError> {
 						let old_value = item.ok_or(Error::<T>::ProposalIdNotExist)?;
@@ -276,7 +276,7 @@ pub mod pallet {
 						Ok(())
 					},
 				)?;
-				let (o1, o2) = ProposalTotalOptionalMarket::<T>::try_mutate_exists(
+				let (o1, o2) = ProposalTotalOptionalMarket::<T>::try_mutate(
 					proposal_id,
 					|item| -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
 						let (o1, o2) = item.ok_or(Error::<T>::ProposalIdNotExist)?;
@@ -354,7 +354,7 @@ pub mod pallet {
 				T::Tokens::donate(currency_id, &who, number)?;
 				T::Tokens::mint(optional_currency_id, &who, actual_number)?;
 				T::Tokens::mint_donate(other_currency.1, actual_number)?;
-				let diff = ProposalTotalOptionalMarket::<T>::try_mutate_exists(
+				let diff = ProposalTotalOptionalMarket::<T>::try_mutate(
 					proposal_id,
 					|item| -> Result<BalanceOf<T>, DispatchError> {
 						let old_pair = item.ok_or(Error::<T>::ProposalIdNotExist)?;
@@ -417,7 +417,7 @@ pub mod pallet {
 			let other_currency = Self::get_other_optional_id(proposal_id, optional_currency_id)?;
 			let actual_number = Self::with_transaction_result(|| {
 				T::Tokens::donate(optional_currency_id, &who, number)?;
-				let diff = ProposalTotalOptionalMarket::<T>::try_mutate_exists(
+				let diff = ProposalTotalOptionalMarket::<T>::try_mutate(
 					proposal_id,
 					|item| -> Result<[BalanceOf<T>; 2], DispatchError> {
 						let old_pair = item.ok_or(Error::<T>::ProposalIdNotExist)?;
@@ -510,12 +510,7 @@ pub mod pallet {
 				T::Tokens::appropriation(currency_id, &who, balance)?;
 				Ok(())
 			})?;
-			Self::deposit_event(Event::Retrieval(
-				who,
-				proposal_id,
-				result_id,
-				balance,
-			));
+			Self::deposit_event(Event::Retrieval(who, proposal_id, result_id, balance));
 			Ok(().into())
 		}
 
@@ -645,20 +640,21 @@ impl<T: Config> Pallet<T> {
 			ProposalCreateTime::<T>::insert(proposal_id, T::Time::now());
 			ProposalCurrencyId::<T>::insert(proposal_id, currency_id);
 			T::Tokens::donate(currency_id, &who, number)?;
+			let decimals = T::Tokens::decimals(currency_id)?;
 			let asset_id_1 = T::Tokens::new_asset(
 				optional[0].clone(),
 				runtime_format!("{:?}-yes", proposal_id),
-				18,
+				decimals,
 			)?;
 			let asset_id_2 = T::Tokens::new_asset(
 				optional[1].clone(),
 				runtime_format!("{:?}-no", proposal_id),
-				18,
+				decimals,
 			)?;
 			let asset_id_lp = T::Tokens::new_asset(
 				runtime_format!("{:?}-lp", proposal_id),
 				runtime_format!("{:?}-lp", proposal_id),
-				18,
+				decimals,
 			)?;
 
 			T::Tokens::mint_donate(asset_id_1, number)?;

@@ -43,7 +43,7 @@ pub use sp_runtime::{Perbill, Permill};
 
 pub use couple;
 pub use couple::pallet::Proposal;
-use couple_info_runtime_api::ProposalInfo;
+use couple_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
 /// Import the template pallet.
 pub use proposals;
 pub use tokens;
@@ -270,9 +270,10 @@ impl pallet_sudo::Config for Runtime {
 pub type ProposalId = u32;
 pub type VersionId = u32;
 pub type CategoryId = u32;
+const FEE_DECIMALS: u8 = 4;
 
 parameter_types! {
-	pub const EarnTradingFeeDecimals: u8 = 4;
+	pub const EarnTradingFeeDecimals: u8 = FEE_DECIMALS;
 	pub const CurrentLiquidateVersionId: VersionId = 1;
 }
 
@@ -297,7 +298,7 @@ parameter_types! {
 	pub const TokensModuleId: ModuleId = ModuleId(*b"xptokens");
 }
 
-type CurrencyId = u32;
+pub type CurrencyId = u32;
 
 impl tokens::Config for Runtime {
 	type Event = Event;
@@ -492,27 +493,70 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl couple_info_runtime_api::CoupleInfoApi<Block, VersionId, ProposalId, CategoryId, Balance, Moment> for Runtime {
-		fn get_proposal_info(_: VersionId, proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment> {
+	impl couple_info_runtime_api::CoupleInfoApi<Block, VersionId, ProposalId, CategoryId, Balance, Moment, CurrencyId, AccountId> for Runtime {
+		fn get_proposal_info(_: VersionId, proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment, CurrencyId> {
 			let proposal = Couple::proposals(proposal_id).unwrap_or(Default::default());
-			let optional = Couple::proposal_total_optional_market(proposal_id).unwrap_or(Default::default());
+			let (yes, no) = Couple::proposal_total_optional_market(proposal_id).unwrap_or(Default::default());
 			let close_time = Couple::proposal_close_time(proposal_id).unwrap_or(Default::default());
 			let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or(Default::default());
 			let pairs = Couple::pool_pairs(proposal_id).unwrap_or(Default::default());
 			let yes_name = Tokens::currencies(pairs.0).unwrap_or(Default::default()).name;
 			let no_name = Tokens::currencies(pairs.1).unwrap_or(Default::default()).name;
 			let status = Proposals::proposal_status(proposal_id).unwrap_or(ProposalStatus::OriginalPrediction);
+			let token_id = Couple::proposal_currency_id(proposal_id).unwrap_or(Default::default());
+			let decimals = Tokens::currencies(token_id).unwrap_or(Default::default()).decimals;
 
 			ProposalInfo {
 				title: proposal.title,
 				category_id: proposal.category_id,
 				detail: proposal.detail,
-				yes: optional.0,
+				yes,
 				yes_name,
-				no: optional.1,
+				no,
 				no_name,
 				close_time,
 				liquidity,
+				status,
+				token_id,
+				decimals
+			}
+		}
+
+		fn get_personal_proposal_info(_: VersionId, proposal_id: ProposalId, account_id: AccountId) -> PersonalProposalInfo<Balance, Moment, CurrencyId> {
+			let currency_id = Couple::proposal_currency_id(proposal_id).unwrap_or(Default::default());
+			let (yes_currency_id, no_currency_id) = Couple::pool_pairs(proposal_id).unwrap_or(Default::default());
+			let liquidity_currency_id = Couple::proposal_liquidate_currency_id(proposal_id).unwrap_or(Default::default());
+			let decimals = Tokens::currencies(currency_id).unwrap_or(Default::default()).decimals;
+			let yes_decimals = Tokens::currencies(yes_currency_id).unwrap_or(Default::default()).decimals;
+			let no_decimals = Tokens::currencies(no_currency_id).unwrap_or(Default::default()).decimals;
+			let liquidity_decimals = Tokens::currencies(liquidity_currency_id).unwrap_or(Default::default()).decimals;
+			let (yes, no) = Couple::proposal_total_optional_market(proposal_id).unwrap_or(Default::default());
+			let fee_rate = Couple::proposal_total_earn_trading_fee(proposal_id).unwrap_or(Default::default());
+			let fee = Couple::proposal_total_market_fee(proposal_id).unwrap_or(Default::default());
+			let total = Couple::proposal_total_market(proposal_id).unwrap_or(Default::default());
+			let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or(Default::default());
+			let balance = Tokens::balance_of(account_id, currency_id).unwrap_or(Default::default());
+			let close_time = Couple::proposal_close_time(proposal_id).unwrap_or(Default::default());
+			let status = Proposals::proposal_status(proposal_id).unwrap_or(ProposalStatus::OriginalPrediction);
+
+			PersonalProposalInfo {
+				currency_id,
+				yes_currency_id,
+				no_currency_id,
+				liquidity_currency_id,
+				decimals,
+				yes_decimals,
+				no_decimals,
+				liquidity_decimals,
+				fee_rate_decimals: FEE_DECIMALS,
+				fee_rate,
+				fee,
+				no,
+				yes,
+				total,
+				liquidity,
+				balance,
+				close_time,
 				status,
 			}
 		}

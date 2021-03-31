@@ -399,7 +399,7 @@ impl<T: Config> Pallet<T> {
 						.unwrap_or(Zero::zero()))
 				},
 			)?;
-			let _ = TotalSupply::<T>::try_mutate_exists(
+			let _ = TotalSupply::<T>::try_mutate(
 				currency_id,
 				|total_supply| -> Result<BalanceType<T>, DispatchError> {
 					let old_total = total_supply.unwrap_or(Zero::zero());
@@ -442,7 +442,7 @@ impl<T: Config> Pallet<T> {
 						.unwrap_or(Zero::zero()))
 				},
 			)?;
-			let _ = TotalSupply::<T>::try_mutate_exists(
+			let _ = TotalSupply::<T>::try_mutate(
 				currency_id,
 				|total_supply| -> Result<BalanceType<T>, DispatchError> {
 					let old_total = total_supply.ok_or(Error::<T>::CurrencyIdNotExist)?;
@@ -476,7 +476,7 @@ impl<T: Config> Pallet<T> {
 				BalanceOf::<T>::get(&from, currency_id).unwrap_or(Zero::zero()) >= number,
 				Error::<T>::InsufficientBalance
 			);
-			let actual_number = BalanceOf::<T>::try_mutate_exists(
+			let actual_number = BalanceOf::<T>::try_mutate(
 				&from,
 				currency_id,
 				|balance| -> Result<BalanceType<T>, DispatchError> {
@@ -538,7 +538,7 @@ impl<T: Config> Pallet<T> {
 			Ok(number)
 		} else {
 			Self::with_transaction_result(|| {
-				let actual_number = BalanceOf::<T>::try_mutate_exists(
+				let actual_number = BalanceOf::<T>::try_mutate(
 					&from,
 					currency_id,
 					|val| -> Result<BalanceType<T>, DispatchError> {
@@ -581,7 +581,7 @@ impl<T: Config> Pallet<T> {
 			T::Currency::unreserve(&from, number);
 			Ok(number)
 		} else {
-			let mut actual_number = ReserveOf::<T>::try_mutate_exists(
+			let mut actual_number = ReserveOf::<T>::try_mutate(
 				&from,
 				currency_id,
 				|val| -> Result<BalanceType<T>, DispatchError> {
@@ -594,7 +594,7 @@ impl<T: Config> Pallet<T> {
 					Ok(old_val.checked_sub(&new_val).unwrap_or(Zero::zero()))
 				},
 			)?;
-			actual_number = BalanceOf::<T>::try_mutate_exists(
+			actual_number = BalanceOf::<T>::try_mutate(
 				&from,
 				currency_id,
 				|val| -> Result<BalanceType<T>, DispatchError> {

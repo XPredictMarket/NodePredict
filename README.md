@@ -43,7 +43,30 @@
         "noName": "Text",
         "yes": "BalanceOf",
         "yesName": "Text",
-        "title": "Text"
+        "title": "Text",
+        "status": "ProposalStatus",
+        "tokenId": "CurrencyId",
+        "decimals": "u8"
+    },
+    "PersonalProposalInfo": {
+        "currencyId": "CurrencyId",
+        "yesCurrencyId": "CurrencyId",
+        "noCurrencyId": "CurrencyId",
+        "liquidityCurrencyId": "CurrencyId",
+        "decimals": "u8",
+        "yesDecimals": "u8",
+        "noDecimals": "u8",
+        "liquidityDecimals": "u8",
+        "feeRateDecimals": "u8",
+        "feeRate": "u32",
+        "fee": "BalanceOf",
+        "no": "BalanceOf",
+        "yes": "BalanceOf",
+        "total": "BalanceOf",
+        "liquidity": "BalanceOf",
+        "balance": "BalanceOf",
+        "closeTime": "MomentOf",
+        "status": "ProposalStatus"
     }
 }
 ```
@@ -54,15 +77,29 @@
 const rpc = {
     proposal: {
         getProposalInfo: {
-            description: "haha",
+            description: "getProposalInfo",
             params: [{
-                name: "version_id",
+                name: "versionId",
                 type: "VersionId"
             }, {
-                name: "proposal_id",
+                name: "proposalId",
                 type: "ProposalId"
             }],
             type: "ProposalInfo",
+        },
+        getPersonalProposalInfo: {
+            description: "getPersonalProposalInfo",
+            params: [{
+                name: "versionId",
+                type: "VersionId"
+            }, {
+                name: "proposalId",
+                type: "ProposalId"
+            }, {
+                name: "accountId",
+                type: "AccountId"
+            }],
+            type: "PersonalProposalInfo",
         }
     }
 }
