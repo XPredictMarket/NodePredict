@@ -89,6 +89,24 @@ pub struct ProposalInfo<CategoryId, Balance, Moment, CurrencyId> {
 #[cfg_attr(feature = "std", derive(Debug, Deserialize, Serialize))]
 #[cfg_attr(feature = "std", serde(rename_all = "camelCase"))]
 pub struct PersonalProposalInfo<Balance, Moment, CurrencyId> {
+    #[cfg_attr(feature = "std", serde(serialize_with = "vec_u8_serialize_as_string"))]
+    #[cfg_attr(
+        feature = "std",
+        serde(deserialize_with = "vec_u8_deserialize_from_string")
+    )]
+    pub title: Vec<u8>,
+    #[cfg_attr(feature = "std", serde(serialize_with = "vec_u8_serialize_as_string"))]
+    #[cfg_attr(
+        feature = "std",
+        serde(deserialize_with = "vec_u8_deserialize_from_string")
+    )]
+    pub yes_name: Vec<u8>,
+    #[cfg_attr(feature = "std", serde(serialize_with = "vec_u8_serialize_as_string"))]
+    #[cfg_attr(
+        feature = "std",
+        serde(deserialize_with = "vec_u8_deserialize_from_string")
+    )]
+    pub no_name: Vec<u8>,
     pub currency_id: CurrencyId,
     pub yes_currency_id: CurrencyId,
     pub no_currency_id: CurrencyId,

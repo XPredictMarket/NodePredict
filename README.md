@@ -49,6 +49,9 @@
         "decimals": "u8"
     },
     "PersonalProposalInfo": {
+        "title": "Text",
+        "yesName": "Text",
+        "noName": "Text",
         "currencyId": "CurrencyId",
         "yesCurrencyId": "CurrencyId",
         "noCurrencyId": "CurrencyId",
