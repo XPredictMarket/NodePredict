@@ -580,17 +580,23 @@ impl<T: Config> Pallet<T> {
 		total_liquid: BalanceOf<T>,
 	) -> Result<BalanceOf<T>, DispatchError> {
 		let market_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
+
+		let decimals = <T as xpmrl_proposals::Config>::EarnTradingFeeDecimals::get();
+		let one = pow(10u32, decimals.into());
+		let liquidity_provider_fee_rate: u32 =
+			ProposalPallet::<T>::proposal_owner_fee_rate().unwrap_or(0);
+
 		let mul_market_fee = market_fee
 			.checked_mul(&number)
 			.ok_or(Error::<T>::BalanceOverflow)?;
 		let mul_market_fee = mul_market_fee
-			.checked_mul(&90u32.into())
+			.checked_mul(&liquidity_provider_fee_rate.into())
 			.ok_or(Error::<T>::BalanceOverflow)?;
 		let fee = mul_market_fee
 			.checked_div(&total_liquid)
 			.ok_or(Error::<T>::BalanceOverflow)?;
 		let fee = fee
-			.checked_div(&100u32.into())
+			.checked_div(&one.into())
 			.ok_or(Error::<T>::BalanceOverflow)?;
 		Ok(fee)
 	}
@@ -603,11 +609,16 @@ impl<T: Config> Pallet<T> {
 			.ok_or(Error::<T>::ProposalIdNotExist)?;
 		if owner == *who {
 			let market_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
+
+			let decimals = <T as xpmrl_proposals::Config>::EarnTradingFeeDecimals::get();
+			let one = pow(10u32, decimals.into());
+			let owner_fee_rate: u32 = ProposalPallet::<T>::proposal_owner_fee_rate().unwrap_or(0);
+
 			let mul_market_fee = market_fee
-				.checked_mul(&90u32.into())
+				.checked_mul(&owner_fee_rate.into())
 				.ok_or(Error::<T>::BalanceOverflow)?;
 			let fee = mul_market_fee
-				.checked_div(&100u32.into())
+				.checked_div(&one.into())
 				.ok_or(Error::<T>::BalanceOverflow)?;
 			let fee = market_fee
 				.checked_sub(&fee)

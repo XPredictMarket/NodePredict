@@ -104,6 +104,45 @@ pub mod pallet {
 	pub type ProposalOwner<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::ProposalId, T::AccountId, OptionQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn proposal_automatic_expiration_time)]
+	pub type ProposalAutomaticExpirationTime<T: Config> = StorageValue<_, MomentOf<T>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn proposal_owner_fee_rate)]
+	pub type ProposalOwnerFeeRate<T: Config> = StorageValue<_, u32>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn proposal_liquidity_provider_fee_rate)]
+	pub type ProposalLiquidityProviderFeeRate<T: Config> = StorageValue<_, u32>;
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig {
+		pub expiration_time: u32,
+		pub owner_fee_rate: u32,
+		pub liquidity_provider_fee_rate: u32,
+	}
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> Self {
+			Self {
+				expiration_time: 3 * 24 * 60 * 60 * 1000,
+				owner_fee_rate: 1000,
+				liquidity_provider_fee_rate: 9000,
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+		fn build(&self) {
+			ProposalAutomaticExpirationTime::<T>::set(Some(self.expiration_time.into()));
+			ProposalOwnerFeeRate::<T>::set(Some(self.owner_fee_rate));
+			ProposalLiquidityProviderFeeRate::<T>::set(Some(self.liquidity_provider_fee_rate));
+		}
+	}
+
 	#[pallet::event]
 	#[pallet::metadata(T::AccountId = "AccountId")]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -202,7 +241,7 @@ impl<T: Config> Pallet<T> {
 
 	pub fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
 		let now = T::Time::now();
-		let _3days: u32 = 3 * 24 * 60 * 60 * 1000;
+		let expiration_time = ProposalAutomaticExpirationTime::<T>::get().unwrap_or(Zero::zero());
 		let max_id = CurrentProposalId::<T>::get().unwrap_or(Zero::zero());
 		let mut index: <T as Config>::ProposalId = Zero::zero();
 		loop {
@@ -211,7 +250,7 @@ impl<T: Config> Pallet<T> {
 			}
 			let (start, end) = T::LiquidityPool::time(index)?;
 			let diff = now.checked_sub(&start).ok_or("time sub overflow")?;
-			if (diff > _3days.into()
+			if (diff > expiration_time
 				&& ProposalStatus::<T>::get(index).unwrap_or(Status::OriginalPrediction)
 					== Status::OriginalPrediction)
 				|| (now > end)
@@ -229,15 +268,12 @@ impl<T: Config> Pallet<T> {
 		proposal_id: T::ProposalId,
 		new_status: Status,
 	) -> Result<Status, DispatchError> {
-		ProposalStatus::<T>::try_mutate(
-			proposal_id,
-			|status| -> Result<Status, DispatchError> {
-				let old_status = status.ok_or(Error::<T>::ProposalIdNotExist)?;
-				ensure!(old_status != new_status, Error::<T>::StatusMustDiff);
-				*status = Some(new_status);
-				Ok(new_status)
-			},
-		)
+		ProposalStatus::<T>::try_mutate(proposal_id, |status| -> Result<Status, DispatchError> {
+			let old_status = status.ok_or(Error::<T>::ProposalIdNotExist)?;
+			ensure!(old_status != new_status, Error::<T>::StatusMustDiff);
+			*status = Some(new_status);
+			Ok(new_status)
+		})
 	}
 
 	pub fn get_next_proposal_id() -> Result<T::ProposalId, DispatchError> {

@@ -324,7 +324,7 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the template pallet in the runtime.
-		Proposals: proposals::{Module, Call, Storage, Event<T>},
+		Proposals: proposals::{Module, Call, Config, Storage, Event<T>},
 		Couple: couple::{Module, Call, Storage, Event<T>},
 		Tokens: tokens::{Module, Call, Config<T>, Storage, Event<T>},
 	}

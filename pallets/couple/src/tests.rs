@@ -92,6 +92,7 @@ fn test_add_liquidity() {
             Some(number + next_number)
         );
         assert_eq!(CoupleModule::proposal_account_info(0, 2), Some(next_number));
+        assert_eq!(XPMRLTokens::balance_of(2, 5), Some(next_number));
     });
 }
 

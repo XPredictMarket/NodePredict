@@ -1,6 +1,6 @@
 use predict_runtime::{
-	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, Signature, SudoConfig,
-	SystemConfig, TokensConfig, WASM_BINARY,
+	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, ProposalsConfig,
+	Signature, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -240,6 +240,11 @@ fn testnet_genesis(
 				.map(|x| (x.0.clone().as_bytes().to_vec(), x.1))
 				.collect(),
 			balances,
+		}),
+		proposals: Some(ProposalsConfig {
+			expiration_time: 3 * 24 * 60 * 60 * 1000,
+			owner_fee_rate: 1000,
+			liquidity_provider_fee_rate: 9000,
 		}),
 	}
 }
