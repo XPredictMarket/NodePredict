@@ -197,10 +197,13 @@ pub mod pallet {
 				ProposalCurrencyId::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
 			let (asset_id_1, asset_id_2) =
 				PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+			let liquidate_currency_id = ProposalLiquidateCurrencyId::<T>::get(proposal_id)
+				.ok_or(Error::<T>::ProposalIdNotExist)?;
 			Self::with_transaction_result(|| {
 				T::Tokens::donate(currency_id, &who, number)?;
 				T::Tokens::mint_donate(asset_id_1, number)?;
 				T::Tokens::mint_donate(asset_id_2, number)?;
+				T::Tokens::mint(liquidate_currency_id, &who, number)?;
 				ProposalTotalOptionalMarket::<T>::try_mutate(
 					proposal_id,
 					|item| -> Result<(), DispatchError> {
