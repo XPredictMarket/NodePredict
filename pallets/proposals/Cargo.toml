@@ -20,6 +20,7 @@ sp-core = { version = "3.0.0", default-features = false }
 sp-io = { version = "3.0.0", default-features = false }
 sp-runtime = { version = "3.0.0", default-features = false }
 xpmrl-traits = { version = "0.1.0", default-features = false, path = "../traits" }
+xpmrl-utils = { version = "0.1.0", default-features = false, path = "../utils" }
 
 [dev-dependencies]
 serde = { version = "1.0.101" }
@@ -36,4 +37,5 @@ std = [
 	'sp-io/std',
 	'sp-runtime/std',
 	'xpmrl-traits/std',
+	'xpmrl-utils/std',
 ]

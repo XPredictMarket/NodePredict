@@ -8,9 +8,10 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub(crate) mod macros;
+
 use frame_support::{
 	ensure,
-	storage::{with_transaction, TransactionOutcome},
 	traits::{Get, Time},
 };
 use num_traits::pow::pow;
@@ -23,28 +24,22 @@ use sp_std::vec::Vec;
 use xpmrl_proposals::Pallet as ProposalPallet;
 use xpmrl_traits::pool::LiquidityPool;
 use xpmrl_traits::{tokens::Tokens, ProposalStatus};
-
-macro_rules! runtime_format {
-	($($args:tt)*) => {{
-		#[cfg(feature = "std")]
-		{
-			format!($($args)*).as_bytes().to_vec()
-		}
-		#[cfg(not(feature = "std"))]
-		{
-			sp_std::alloc::format!($($args)*).as_bytes().to_vec()
-		}
-	}};
-}
+use xpmrl_utils::{runtime_format, storage_try_mutate, with_transaction_result};
 
 #[frame_support::pallet]
 pub mod pallet {
+	use super::{
+		proposal_account_info_try_mutate, proposal_total_market_fee_try_mutate,
+		proposal_total_market_liquid_try_mutate, proposal_total_optional_market_try_mutate,
+		value_changed,
+	};
 	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::traits::{CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, Zero};
 	use sp_std::{cmp, vec::Vec};
 	use xpmrl_proposals::Pallet as ProposalPallet;
 	use xpmrl_traits::{tokens::Tokens, ProposalStatus};
+	use xpmrl_utils::{storage_try_mutate, sub_abs, with_transaction_result};
 
 	pub(crate) type BalanceOf<T> =
 		<<T as Config>::Tokens as Tokens<<T as frame_system::Config>::AccountId>>::Balance;
@@ -199,31 +194,22 @@ pub mod pallet {
 				PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
 			let liquidate_currency_id = ProposalLiquidateCurrencyId::<T>::get(proposal_id)
 				.ok_or(Error::<T>::ProposalIdNotExist)?;
-			Self::with_transaction_result(|| {
+			with_transaction_result(|| {
 				T::Tokens::donate(currency_id, &who, number)?;
 				T::Tokens::mint_donate(asset_id_1, number)?;
 				T::Tokens::mint_donate(asset_id_2, number)?;
 				T::Tokens::mint(liquidate_currency_id, &who, number)?;
-				ProposalTotalOptionalMarket::<T>::try_mutate(
+				proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
+					let new_o1 = o1.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?;
+					let new_o2 = o2.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?;
+					(new_o1, new_o2)
+				})?;
+				proposal_total_market_liquid_try_mutate!(
 					proposal_id,
-					|item| -> Result<(), DispatchError> {
-						let (o1, o2) = item.ok_or(Error::<T>::ProposalIdNotExist)?;
-						let new_o1 = o1.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?;
-						let new_o2 = o2.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?;
-						*item = Some((new_o1, new_o2));
-						Ok(())
-					},
-				)?;
-				ProposalTotalMarketLiquid::<T>::try_mutate(
-					proposal_id,
-					|item| -> Result<(), DispatchError> {
-						let old_value = item.ok_or(Error::<T>::ProposalIdNotExist)?;
-						let new_value = old_value
-							.checked_add(&number)
-							.ok_or(Error::<T>::BalanceOverflow)?;
-						*item = Some(new_value);
-						Ok(())
-					},
+					old_value,
+					old_value
+						.checked_add(&number)
+						.ok_or(Error::<T>::BalanceOverflow)?
 				)?;
 				Self::total_and_account_add(proposal_id, &who, number)?;
 				Ok(())
@@ -250,59 +236,41 @@ pub mod pallet {
 				.ok_or(Error::<T>::ProposalIdNotExist)?;
 			let (asset_id_1, asset_id_2) =
 				PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
-			Self::with_transaction_result(|| {
+			with_transaction_result(|| {
 				T::Tokens::burn(liquidate_currency_id, &who, number)?;
-				let total_liquid = ProposalTotalMarketLiquid::<T>::try_mutate(
+				let total_liquid = proposal_total_market_liquid_try_mutate!(
 					proposal_id,
-					|item| -> Result<BalanceOf<T>, DispatchError> {
-						let old_value = item.ok_or(Error::<T>::ProposalIdNotExist)?;
-						let new_value = old_value
-							.checked_sub(&number)
-							.ok_or(Error::<T>::BalanceOverflow)?;
-						*item = Some(new_value);
-						Ok(old_value)
-					},
+					old_value,
+					old_value
+						.checked_sub(&number)
+						.ok_or(Error::<T>::BalanceOverflow)?
 				)?;
 				let fee = Self::get_fee_of_liquid(proposal_id, number, total_liquid)?;
 				let creater_fee = Self::get_fee_of_creator(&who, proposal_id)?;
 				let fee = fee
 					.checked_add(&creater_fee)
 					.ok_or(Error::<T>::BalanceOverflow)?;
-				ProposalTotalMarketFee::<T>::try_mutate(
+				proposal_total_market_fee_try_mutate!(
 					proposal_id,
-					|item| -> Result<(), DispatchError> {
-						let old_value = item.unwrap_or(Zero::zero());
-						let new_value = old_value
-							.checked_sub(&fee)
-							.ok_or(Error::<T>::BalanceOverflow)?;
-						*item = Some(new_value);
-						Ok(())
-					},
+					old_value,
+					old_value
+						.checked_sub(&fee)
+						.ok_or(Error::<T>::BalanceOverflow)?
 				)?;
-				let (o1, o2) = ProposalTotalOptionalMarket::<T>::try_mutate(
-					proposal_id,
-					|item| -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
-						let (o1, o2) = item.ok_or(Error::<T>::ProposalIdNotExist)?;
+				let (o1, o2) = proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
+					let new_o1 = o1.checked_mul(&number).ok_or(Error::<T>::BalanceOverflow)?;
+					let new_o1 = new_o1
+						.checked_div(&total_liquid.into())
+						.ok_or(Error::<T>::BalanceOverflow)?;
+					let new_o1 = o1.checked_sub(&new_o1).ok_or(Error::<T>::BalanceOverflow)?;
 
-						let new_o1 = o1.checked_mul(&number).ok_or(Error::<T>::BalanceOverflow)?;
-						let new_o1 = new_o1
-							.checked_div(&total_liquid.into())
-							.ok_or(Error::<T>::BalanceOverflow)?;
-						let new_o1 = o1.checked_sub(&new_o1).ok_or(Error::<T>::BalanceOverflow)?;
-
-						let new_o2 = o2.checked_mul(&number).ok_or(Error::<T>::BalanceOverflow)?;
-						let new_o2 = new_o2
-							.checked_div(&total_liquid.into())
-							.ok_or(Error::<T>::BalanceOverflow)?;
-						let new_o2 = o2.checked_sub(&new_o2).ok_or(Error::<T>::BalanceOverflow)?;
-
-						*item = Some((new_o1, new_o2));
-						Ok((
-							o1.checked_sub(&new_o1).unwrap_or(Zero::zero()),
-							o2.checked_sub(&new_o2).unwrap_or(Zero::zero()),
-						))
-					},
-				)?;
+					let new_o2 = o2.checked_mul(&number).ok_or(Error::<T>::BalanceOverflow)?;
+					let new_o2 = new_o2
+						.checked_div(&total_liquid.into())
+						.ok_or(Error::<T>::BalanceOverflow)?;
+					let new_o2 = o2.checked_sub(&new_o2).ok_or(Error::<T>::BalanceOverflow)?;
+					(new_o1, new_o2)
+				})?;
 				let min = cmp::min(o1, o2);
 				T::Tokens::burn_donate(asset_id_1, min)?;
 				T::Tokens::burn_donate(asset_id_2, min)?;
@@ -352,37 +320,25 @@ pub mod pallet {
 				Error::<T>::CurrencyIdNotFound
 			);
 			let other_currency = Self::get_other_optional_id(proposal_id, optional_currency_id)?;
-			let actual_number = Self::with_transaction_result(|| {
+			let actual_number = with_transaction_result(|| {
 				let (actual_number, fee) = Self::get_fee(proposal_id, number)?;
 				T::Tokens::donate(currency_id, &who, number)?;
 				T::Tokens::mint(optional_currency_id, &who, actual_number)?;
 				T::Tokens::mint_donate(other_currency.1, actual_number)?;
-				let diff = ProposalTotalOptionalMarket::<T>::try_mutate(
-					proposal_id,
-					|item| -> Result<BalanceOf<T>, DispatchError> {
-						let old_pair = item.ok_or(Error::<T>::ProposalIdNotExist)?;
-						let old_pair = [old_pair.0, old_pair.1];
-						let new_pair =
-							Self::add_and_adjust_pool(other_currency.0, actual_number, &old_pair)?;
-						let diff = old_pair[1 - other_currency.0]
-							.checked_sub(&new_pair[1 - other_currency.0])
-							.ok_or(Error::<T>::BalanceOverflow)?;
-
-						*item = Some((new_pair[0], new_pair[1]));
-						Ok(diff)
-					},
-				)?;
+				let (d1, d2) = proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
+					let old_pair = [o1, o2];
+					let new_pair =
+						Self::add_and_adjust_pool(other_currency.0, actual_number, &old_pair)?;
+					(new_pair[0], new_pair[1])
+				})?;
+				let diff = [d1, d2][1 - other_currency.0];
 				Self::total_and_account_add(proposal_id, &who, actual_number)?;
-				ProposalTotalMarketFee::<T>::try_mutate(
+				proposal_total_market_fee_try_mutate!(
 					proposal_id,
-					|item| -> Result<(), DispatchError> {
-						let old_value = item.unwrap_or(Zero::zero());
-						let new_value = old_value
-							.checked_add(&fee)
-							.ok_or(Error::<T>::BalanceOverflow)?;
-						*item = Some(new_value);
-						Ok(())
-					},
+					old_value,
+					old_value
+						.checked_add(&fee)
+						.ok_or(Error::<T>::BalanceOverflow)?
 				)?;
 				T::Tokens::appropriation(optional_currency_id, &who, diff)?;
 				Ok(actual_number)
@@ -418,51 +374,34 @@ pub mod pallet {
 				Error::<T>::CurrencyIdNotFound
 			);
 			let other_currency = Self::get_other_optional_id(proposal_id, optional_currency_id)?;
-			let actual_number = Self::with_transaction_result(|| {
+			let actual_number = with_transaction_result(|| {
 				T::Tokens::donate(optional_currency_id, &who, number)?;
-				let diff = ProposalTotalOptionalMarket::<T>::try_mutate(
-					proposal_id,
-					|item| -> Result<[BalanceOf<T>; 2], DispatchError> {
-						let old_pair = item.ok_or(Error::<T>::ProposalIdNotExist)?;
-						let old_pair = [old_pair.0, old_pair.1];
-						let actual_number = Self::get_sell_result(
-							proposal_id,
-							&old_pair,
-							number,
-							optional_currency_id,
-						)?;
-						let new_pair = Self::add_and_adjust_pool(
-							1 - other_currency.0,
-							actual_number,
-							&old_pair,
-						)?;
-						*item = Some((new_pair[0], new_pair[1]));
-						let mut diff = new_pair.clone();
-						diff[other_currency.0] = old_pair[other_currency.0]
-							.checked_sub(&diff[other_currency.0])
-							.ok_or(Error::<T>::BalanceOverflow)?;
-						diff[1 - other_currency.0] = diff[1 - other_currency.0]
-							.checked_sub(&old_pair[1 - other_currency.0])
-							.ok_or(Error::<T>::BalanceOverflow)?;
-						Ok(diff)
-					},
-				)?;
+				let (d1, d2) = proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
+					let old_pair = [o1, o2];
+					let actual_number = Self::get_sell_result(
+						proposal_id,
+						&old_pair,
+						number,
+						optional_currency_id,
+					)?;
+					let new_pair =
+						Self::add_and_adjust_pool(1 - other_currency.0, actual_number, &old_pair)?;
+					(new_pair[0], new_pair[1])
+				})?;
+				let diff = [d1, d2];
 				let last_select_currency = number
 					.checked_sub(&diff[1 - other_currency.0])
 					.ok_or(Error::<T>::BalanceOverflow)?;
 				let acquired_currency = diff[other_currency.0];
 				let min = cmp::min(last_select_currency, acquired_currency);
+				T::Tokens::burn_donate(other_currency.1, min)?;
 				let (actual_number, fee) = Self::get_fee(proposal_id, min)?;
-				ProposalTotalMarketFee::<T>::try_mutate(
+				proposal_total_market_fee_try_mutate!(
 					proposal_id,
-					|item| -> Result<(), DispatchError> {
-						let old_value = item.unwrap_or(Zero::zero());
-						let new_value = old_value
-							.checked_add(&fee)
-							.ok_or(Error::<T>::BalanceOverflow)?;
-						*item = Some(new_value);
-						Ok(())
-					},
+					old_value,
+					old_value
+						.checked_add(&fee)
+						.ok_or(Error::<T>::BalanceOverflow)?
 				)?;
 				Self::total_and_account_sub(proposal_id, &who, min)?;
 				T::Tokens::appropriation(currency_id, &who, actual_number)?;
@@ -508,7 +447,13 @@ pub mod pallet {
 				ProposalCurrencyId::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
 			let balance = T::Tokens::balance(result_id, &who);
 			ensure!(balance >= Zero::zero(), Error::<T>::InsufficientBalance);
-			Self::with_transaction_result(|| {
+			with_transaction_result(|| {
+				proposal_account_info_try_mutate!(
+					proposal_id,
+					who,
+					old_amount,
+					old_amount.checked_add(&balance).unwrap_or(Zero::zero())
+				)?;
 				T::Tokens::burn(result_id, &who, balance)?;
 				T::Tokens::appropriation(currency_id, &who, balance)?;
 				Ok(())
@@ -535,7 +480,7 @@ pub mod pallet {
 				currency_id == asset_id_1 || currency_id == asset_id_2,
 				Error::<T>::CurrencyIdNotFound
 			);
-			Self::with_transaction_result(|| {
+			with_transaction_result(|| {
 				ProposalPallet::<T>::set_new_status(proposal_id, ProposalStatus::End)?;
 				ProposalResult::<T>::insert(proposal_id, currency_id);
 				Ok(())
@@ -547,19 +492,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	pub fn with_transaction_result<R>(
-		f: impl FnOnce() -> Result<R, DispatchError>,
-	) -> Result<R, DispatchError> {
-		with_transaction(|| {
-			let res = f();
-			if res.is_ok() {
-				TransactionOutcome::Commit(res)
-			} else {
-				TransactionOutcome::Rollback(res)
-			}
-		})
-	}
-
 	pub fn get_other_optional_id(
 		proposal_id: T::ProposalId,
 		optional_currency_id: CurrencyIdOf<T>,
@@ -641,7 +573,7 @@ impl<T: Config> Pallet<T> {
 		earn_fee: u32,
 		detail: Vec<u8>,
 	) -> Result<(), DispatchError> {
-		Self::with_transaction_result(|| -> Result<(), DispatchError> {
+		with_transaction_result(|| -> Result<(), DispatchError> {
 			Proposals::<T>::insert(
 				proposal_id,
 				Proposal {
@@ -770,28 +702,20 @@ impl<T: Config> Pallet<T> {
 		who: &T::AccountId,
 		diff: BalanceOf<T>,
 	) -> Result<(), DispatchError> {
-		ProposalTotalMarket::<T>::try_mutate(
+		proposal_total_market_try_mutate!(
 			proposal_id,
-			|value| -> Result<BalanceOf<T>, DispatchError> {
-				let old_amount = value.ok_or(Error::<T>::ProposalIdNotExist)?;
-				let new_amount = old_amount
-					.checked_add(&diff)
-					.ok_or(Error::<T>::BalanceOverflow)?;
-				*value = Some(new_amount);
-				Ok(new_amount.checked_sub(&old_amount).unwrap_or(Zero::zero()))
-			},
+			old_amount,
+			old_amount
+				.checked_add(&diff)
+				.ok_or(Error::<T>::BalanceOverflow)?
 		)?;
-		ProposalAccountInfo::<T>::try_mutate(
+		proposal_account_info_try_mutate!(
 			proposal_id,
-			&who,
-			|value| -> Result<BalanceOf<T>, DispatchError> {
-				let old_amount = value.unwrap_or(Zero::zero());
-				let new_amount = old_amount
-					.checked_add(&diff)
-					.ok_or(Error::<T>::BalanceOverflow)?;
-				*value = Some(new_amount);
-				Ok(new_amount.checked_sub(&old_amount).unwrap_or(Zero::zero()))
-			},
+			who,
+			old_amount,
+			old_amount
+				.checked_add(&diff)
+				.ok_or(Error::<T>::BalanceOverflow)?
 		)?;
 		Ok(())
 	}
@@ -801,28 +725,20 @@ impl<T: Config> Pallet<T> {
 		who: &T::AccountId,
 		diff: BalanceOf<T>,
 	) -> Result<(), DispatchError> {
-		ProposalTotalMarket::<T>::try_mutate(
+		proposal_total_market_try_mutate!(
 			proposal_id,
-			|value| -> Result<BalanceOf<T>, DispatchError> {
-				let old_amount = value.ok_or(Error::<T>::ProposalIdNotExist)?;
-				let new_amount = old_amount
-					.checked_sub(&diff)
-					.ok_or(Error::<T>::BalanceOverflow)?;
-				*value = Some(new_amount);
-				Ok(old_amount.checked_sub(&new_amount).unwrap_or(Zero::zero()))
-			},
+			old_amount,
+			old_amount
+				.checked_sub(&diff)
+				.ok_or(Error::<T>::BalanceOverflow)?
 		)?;
-		ProposalAccountInfo::<T>::try_mutate(
+		proposal_account_info_try_mutate!(
 			proposal_id,
-			&who,
-			|value| -> Result<BalanceOf<T>, DispatchError> {
-				let old_amount = value.unwrap_or(Zero::zero());
-				let new_amount = old_amount
-					.checked_sub(&diff)
-					.ok_or(Error::<T>::BalanceOverflow)?;
-				*value = Some(new_amount);
-				Ok(new_amount.checked_sub(&old_amount).unwrap_or(Zero::zero()))
-			},
+			who,
+			old_amount,
+			old_amount
+				.checked_sub(&diff)
+				.ok_or(Error::<T>::BalanceOverflow)?
 		)?;
 		Ok(())
 	}

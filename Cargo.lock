@@ -8437,6 +8437,7 @@ dependencies = [
  "xpmrl-proposals",
  "xpmrl-tokens",
  "xpmrl-traits",
+ "xpmrl-utils",
 ]
 
 [[package]]
@@ -8452,6 +8453,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "xpmrl-traits",
+ "xpmrl-utils",
 ]
 
 [[package]]
@@ -8468,10 +8470,22 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "xpmrl-traits",
+ "xpmrl-utils",
 ]
 
 [[package]]
 name = "xpmrl-traits"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "parity-scale-codec",
+ "serde",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "xpmrl-utils"
 version = "0.1.0"
 dependencies = [
  "frame-support",

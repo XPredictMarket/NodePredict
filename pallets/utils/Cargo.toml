@@ -1,7 +1,7 @@
 [package]
 authors = ['XPredictMarket']
 edition = '2018'
-name = 'xpmrl-tokens'
+name = 'xpmrl-utils'
 version = "0.1.0"
 license = "Apache-2.0"
 repository = "https://github.com/XPredictMarket/NodePredict"
@@ -11,31 +11,17 @@ description = "FRAME pallet template for defining custom runtime logic."
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-serde = { version = "1.0.101", optional = true }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
 frame-support = { version = "3.0.0", default-features = false }
-frame-system = { version = "3.0.0", default-features = false }
 sp-std = { version = "3.0.0", default-features = false }
-sp-core = { version = "3.0.0", default-features = false }
-sp-io = { version = "3.0.0", default-features = false }
 sp-runtime = { version = "3.0.0", default-features = false }
-xpmrl-traits = { version = "0.1.0", default-features = false, path = "../traits" }
-xpmrl-utils = { version = "0.1.0", default-features = false, path = "../utils" }
-
-[dev-dependencies]
-pallet-balances = { version = "3.0.0" }
+serde = { version = "1.0.101" }
 
 [features]
 default = ['std']
 std = [
-	'serde',
 	'codec/std',
 	'frame-support/std',
-	'frame-system/std',
 	'sp-std/std',
-	'sp-core/std',
-	'sp-io/std',
 	'sp-runtime/std',
-	'xpmrl-traits/std',
-	'xpmrl-utils/std',
 ]

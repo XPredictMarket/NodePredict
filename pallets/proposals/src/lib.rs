@@ -11,7 +11,6 @@ mod tests;
 use frame_support::{
 	dispatch::{DispatchError, Weight},
 	ensure,
-	storage::{with_transaction, TransactionOutcome},
 	traits::{Get, Time},
 };
 use sp_runtime::traits::{CheckedAdd, CheckedSub, One, Zero};
@@ -26,6 +25,7 @@ pub mod pallet {
 	use sp_runtime::traits::*;
 	use sp_std::{fmt::Debug, vec::Vec};
 	use xpmrl_traits::{pool::LiquidityPool, ProposalStatus as Status};
+	use xpmrl_utils::with_transaction_result;
 
 	pub(crate) type MomentOf<T> = <<T as Config>::Time as Time>::Moment;
 	pub(crate) type BalanceOf<T> = <<T as Config>::LiquidityPool as LiquidityPool<
@@ -191,7 +191,7 @@ pub mod pallet {
 				close_time >= T::Time::now(),
 				Error::<T>::CloseTimeMustLargeThanNow
 			);
-			let proposal_id = Self::with_transaction_result(|| {
+			let proposal_id = with_transaction_result(|| {
 				let proposal_id = Self::inner_new_proposal_v1(
 					&who,
 					title,
@@ -226,19 +226,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	pub fn with_transaction_result<R>(
-		f: impl FnOnce() -> Result<R, DispatchError>,
-	) -> Result<R, DispatchError> {
-		with_transaction(|| {
-			let res = f();
-			if res.is_ok() {
-				TransactionOutcome::Commit(res)
-			} else {
-				TransactionOutcome::Rollback(res)
-			}
-		})
-	}
-
 	pub fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
 		let now = T::Time::now();
 		let expiration_time = ProposalAutomaticExpirationTime::<T>::get().unwrap_or(Zero::zero());

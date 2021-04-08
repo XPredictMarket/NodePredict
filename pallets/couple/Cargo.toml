@@ -20,6 +20,7 @@ sp-io = { version = "3.0.0", default-features = false }
 sp-runtime = { version = "3.0.0", default-features = false }
 num-traits = { version = "0.2.14", default-features = false }
 xpmrl-traits = { version = "0.1.0", default-features = false, path = "../traits" }
+xpmrl-utils = { version = "0.1.0", default-features = false, path = "../utils" }
 xpmrl-proposals = { version = "0.1.0", default-features = false, path = "../proposals" }
 
 [dev-dependencies]
@@ -39,5 +40,6 @@ std = [
 	'sp-runtime/std',
 	'num-traits/std',
 	'xpmrl-traits/std',
+	'xpmrl-utils/std',
 	'xpmrl-proposals/std',
 ]

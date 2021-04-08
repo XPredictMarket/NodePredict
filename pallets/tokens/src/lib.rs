@@ -11,13 +11,13 @@ mod tests;
 use frame_support::{
 	dispatch::DispatchError,
 	ensure,
-	storage::{with_transaction, TransactionOutcome},
 	traits::Get,
 	traits::{Currency, ExistenceRequirement, ReservableCurrency},
 };
 use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedSub, One, Zero};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 use xpmrl_traits::tokens::Tokens;
+use xpmrl_utils::with_transaction_result;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -30,6 +30,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::{traits::*, ModuleId};
 	use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, vec::Vec};
+	use xpmrl_utils::with_transaction_result;
 
 	#[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, Default)]
 	pub struct PRC20 {
@@ -205,7 +206,7 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			let _ = ensure_root(origin)?;
 			let actual_number =
-				Self::with_transaction_result(|| Self::inner_mint_to(currency_id, &to, number))?;
+				with_transaction_result(|| Self::inner_mint_to(currency_id, &to, number))?;
 			Self::deposit_event(Event::Mint(currency_id, to, actual_number));
 			Ok(().into())
 		}
@@ -218,7 +219,7 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 			let actual_number =
-				Self::with_transaction_result(|| Self::inner_burn_from(currency_id, &who, number))?;
+				with_transaction_result(|| Self::inner_burn_from(currency_id, &who, number))?;
 			Self::deposit_event(Event::Burn(currency_id, who, actual_number));
 			Ok(().into())
 		}
@@ -236,7 +237,7 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::OriginNotAllowed)?;
 			let allow = *(alloweds.get(&who).ok_or(Error::<T>::OriginNotAllowed)?);
 			ensure!(allow >= number, Error::<T>::OriginNotAllowed);
-			let actual_number = Self::with_transaction_result(|| {
+			let actual_number = with_transaction_result(|| {
 				let actual_number = Self::inner_burn_from(currency_id, &from, number)?;
 				Self::set_approve(
 					currency_id,
@@ -259,7 +260,7 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 			ensure!(who != to, Error::<T>::TransferFromSelf);
-			let actual_number = Self::with_transaction_result(|| {
+			let actual_number = with_transaction_result(|| {
 				Self::inner_transfer_from(currency_id, &who, &to, number)
 			})?;
 			Self::deposit_event(Event::Transfer(currency_id, who, to, actual_number));
@@ -281,7 +282,7 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::OriginNotAllowed)?;
 			let allow = *(alloweds.get(&who).ok_or(Error::<T>::OriginNotAllowed)?);
 			ensure!(allow >= number, Error::<T>::OriginNotAllowed);
-			let actual_number = Self::with_transaction_result(|| {
+			let actual_number = with_transaction_result(|| {
 				let actual_number = Self::inner_transfer_from(currency_id, &from, &to, number)?;
 				Self::set_approve(
 					currency_id,
@@ -311,19 +312,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	pub fn with_transaction_result<R>(
-		f: impl FnOnce() -> Result<R, DispatchError>,
-	) -> Result<R, DispatchError> {
-		with_transaction(|| {
-			let res = f();
-			if res.is_ok() {
-				TransactionOutcome::Commit(res)
-			} else {
-				TransactionOutcome::Rollback(res)
-			}
-		})
-	}
-
 	pub fn get_next_currency_id() -> Result<T::CurrencyId, DispatchError> {
 		CurrentCurrencyId::<T>::try_mutate(|value| -> Result<T::CurrencyId, DispatchError> {
 			let mut currency_id = value.unwrap_or(Zero::zero());
@@ -537,7 +525,7 @@ impl<T: Config> Pallet<T> {
 			T::Currency::reserve(&from, number)?;
 			Ok(number)
 		} else {
-			Self::with_transaction_result(|| {
+			with_transaction_result(|| {
 				let actual_number = BalanceOf::<T>::try_mutate(
 					&from,
 					currency_id,
