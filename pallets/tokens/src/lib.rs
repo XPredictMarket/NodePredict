@@ -8,6 +8,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "std")]
+use frame_support::traits::GenesisBuild;
 use frame_support::{
 	dispatch::DispatchError,
 	ensure,
@@ -192,8 +194,7 @@ pub mod pallet {
 			decimals: u8,
 		) -> DispatchResultWithPostInfo {
 			let _ = ensure_root(origin)?;
-			let currency_id =
-				with_transaction_result(|| Self::inner_new_asset(name, symbol, decimals))?;
+			let currency_id = Self::inner_new_asset(name, symbol, decimals)?;
 			Self::deposit_event(Event::NewAsset(currency_id));
 			Ok(().into())
 		}
@@ -297,7 +298,7 @@ pub mod pallet {
 			Ok(().into())
 		}
 
-		#[pallet::weight(0 + T::DbWeight::get().reads_writes(1, 1))]
+		#[pallet::weight(0 + T::DbWeight::get().reads_writes(2, 1))]
 		pub fn approve(
 			origin: OriginFor<T>,
 			currency_id: T::CurrencyId,
@@ -305,11 +306,21 @@ pub mod pallet {
 			number: BalanceType<T>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
-			let acutal_number =
-				with_transaction_result(|| Self::set_approve(currency_id, &who, &spender, number))?;
+			let acutal_number = Self::set_approve(currency_id, &who, &spender, number)?;
 			Self::deposit_event(Event::Approval(currency_id, who, spender, acutal_number));
 			Ok(().into())
 		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl<T: Config> GenesisConfig<T> {
+	pub fn build_storage(&self) -> Result<sp_runtime::Storage, String> {
+		<Self as GenesisBuild<T>>::build_storage(self)
+	}
+
+	pub fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
+		<Self as GenesisBuild<T>>::assimilate_storage(self, storage)
 	}
 }
 

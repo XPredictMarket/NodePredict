@@ -1,5 +1,5 @@
 use crate as tokens;
-use frame_support::parameter_types;
+use frame_support::{parameter_types};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
