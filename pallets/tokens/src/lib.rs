@@ -12,7 +12,7 @@ use frame_support::{
 	dispatch::DispatchError,
 	ensure,
 	traits::Get,
-	traits::{Currency, ExistenceRequirement, GenesisBuild, ReservableCurrency},
+	traits::{Currency, ExistenceRequirement, ReservableCurrency},
 };
 use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedSub, One, Zero};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
@@ -310,16 +310,6 @@ pub mod pallet {
 			Self::deposit_event(Event::Approval(currency_id, who, spender, acutal_number));
 			Ok(().into())
 		}
-	}
-}
-
-impl<T: Config> GenesisConfig<T> {
-	pub fn build_storage(&self) -> Result<sp_runtime::Storage, String> {
-		<Self as GenesisBuild<T>>::build_storage(self)
-	}
-
-	pub fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
-		<Self as GenesisBuild<T>>::assimilate_storage(self, storage)
 	}
 }
 

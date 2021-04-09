@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
 use frame_support::storage::with_transaction;
 use sp_runtime::{DispatchError, TransactionOutcome};
 
