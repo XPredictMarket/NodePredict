@@ -105,6 +105,11 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, T::ProposalId, T::AccountId, OptionQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn proposal_used_currency_id)]
+	pub type ProposalUsedCurrencyId<T: Config> =
+		StorageMap<_, Blake2_128Concat, CurrencyIdOf<T>, (), ValueQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn proposal_automatic_expiration_time)]
 	pub type ProposalAutomaticExpirationTime<T: Config> = StorageValue<_, MomentOf<T>>;
 
@@ -158,6 +163,7 @@ pub mod pallet {
 		CategoryIdNotZero,
 		TokenIdNotZero,
 		CloseTimeMustLargeThanNow,
+		CurrencyIdNotAllowed,
 	}
 
 	#[pallet::hooks]
@@ -190,6 +196,10 @@ pub mod pallet {
 			ensure!(
 				close_time >= T::Time::now(),
 				Error::<T>::CloseTimeMustLargeThanNow
+			);
+			ensure!(
+				!ProposalUsedCurrencyId::<T>::contains_key(currency_id),
+				Error::<T>::CurrencyIdNotAllowed
 			);
 			let proposal_id = with_transaction_result(|| {
 				let proposal_id = Self::inner_new_proposal_v1(
@@ -289,7 +299,7 @@ impl<T: Config> Pallet<T> {
 		let proposal_id = Self::get_next_proposal_id()?;
 		let v1: T::VersionId = T::CurrentLiquidateVersionId::get();
 		ProposalLiquidateVersionId::<T>::insert(proposal_id, v1);
-		T::LiquidityPool::new_liquidity_pool(
+		let (yes_id, no_id, lp_id) = T::LiquidityPool::new_liquidity_pool(
 			&who,
 			proposal_id,
 			title,
@@ -301,6 +311,9 @@ impl<T: Config> Pallet<T> {
 			earn_fee,
 			detail,
 		)?;
+		ProposalUsedCurrencyId::<T>::insert(yes_id, ());
+		ProposalUsedCurrencyId::<T>::insert(no_id, ());
+		ProposalUsedCurrencyId::<T>::insert(lp_id, ());
 		Ok(proposal_id)
 	}
 }

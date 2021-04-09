@@ -21,7 +21,7 @@ use sp_runtime::{
 	DispatchError,
 };
 use sp_std::vec::Vec;
-use xpmrl_proposals::Pallet as ProposalPallet;
+use xpmrl_proposals::Pallet as ProposalsPallet;
 use xpmrl_traits::pool::LiquidityPool;
 use xpmrl_traits::{tokens::Tokens, ProposalStatus};
 use xpmrl_utils::{runtime_format, storage_try_mutate, with_transaction_result};
@@ -37,7 +37,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::traits::{CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, Zero};
 	use sp_std::{cmp, vec::Vec};
-	use xpmrl_proposals::Pallet as ProposalPallet;
+	use xpmrl_proposals::Pallet as ProposalsPallet;
 	use xpmrl_traits::{tokens::Tokens, ProposalStatus};
 	use xpmrl_utils::{storage_try_mutate, sub_abs, with_transaction_result};
 
@@ -481,7 +481,7 @@ pub mod pallet {
 				Error::<T>::CurrencyIdNotFound
 			);
 			with_transaction_result(|| {
-				ProposalPallet::<T>::set_new_status(proposal_id, ProposalStatus::End)?;
+				ProposalsPallet::<T>::set_new_status(proposal_id, ProposalStatus::End)?;
 				ProposalResult::<T>::insert(proposal_id, currency_id);
 				Ok(())
 			})?;
@@ -516,7 +516,7 @@ impl<T: Config> Pallet<T> {
 		let decimals = <T as xpmrl_proposals::Config>::EarnTradingFeeDecimals::get();
 		let one = pow(10u32, decimals.into());
 		let liquidity_provider_fee_rate: u32 =
-			ProposalPallet::<T>::proposal_owner_fee_rate().unwrap_or(0);
+			ProposalsPallet::<T>::proposal_owner_fee_rate().unwrap_or(0);
 
 		let mul_market_fee = market_fee
 			.checked_mul(&number)
@@ -537,14 +537,14 @@ impl<T: Config> Pallet<T> {
 		who: &T::AccountId,
 		proposal_id: ProposalIdOf<T>,
 	) -> Result<BalanceOf<T>, DispatchError> {
-		let owner = ProposalPallet::<T>::proposal_owner(proposal_id)
+		let owner = ProposalsPallet::<T>::proposal_owner(proposal_id)
 			.ok_or(Error::<T>::ProposalIdNotExist)?;
 		if owner == *who {
 			let market_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
 
 			let decimals = <T as xpmrl_proposals::Config>::EarnTradingFeeDecimals::get();
 			let one = pow(10u32, decimals.into());
-			let owner_fee_rate: u32 = ProposalPallet::<T>::proposal_owner_fee_rate().unwrap_or(0);
+			let owner_fee_rate: u32 = ProposalsPallet::<T>::proposal_owner_fee_rate().unwrap_or(0);
 
 			let mul_market_fee = market_fee
 				.checked_mul(&owner_fee_rate.into())
@@ -572,8 +572,8 @@ impl<T: Config> Pallet<T> {
 		number: BalanceOf<T>,
 		earn_fee: u32,
 		detail: Vec<u8>,
-	) -> Result<(), DispatchError> {
-		with_transaction_result(|| -> Result<(), DispatchError> {
+	) -> Result<(CurrencyIdOf<T>, CurrencyIdOf<T>, CurrencyIdOf<T>), DispatchError> {
+		with_transaction_result(|| {
 			Proposals::<T>::insert(
 				proposal_id,
 				Proposal {
@@ -615,12 +615,12 @@ impl<T: Config> Pallet<T> {
 			ProposalAccountInfo::<T>::insert(proposal_id, who.clone(), number);
 			ProposalTotalMarket::<T>::insert(proposal_id, number);
 			ProposalTotalMarketLiquid::<T>::insert(proposal_id, number);
-			Ok(())
+			Ok((asset_id_1, asset_id_2, asset_id_lp))
 		})
 	}
 
 	fn get_proposal_status(proposal_id: ProposalIdOf<T>) -> Result<ProposalStatus, DispatchError> {
-		Ok(ProposalPallet::<T>::proposal_status(proposal_id)
+		Ok(ProposalsPallet::<T>::proposal_status(proposal_id)
 			.ok_or(Error::<T>::ProposalIdNotExist)?)
 	}
 
@@ -761,7 +761,7 @@ impl<T: Config> LiquidityPool<T::AccountId, ProposalIdOf<T>, MomentOf<T>, Catego
 		number: BalanceOf<T>,
 		earn_fee: u32,
 		detail: Vec<u8>,
-	) -> Result<(), DispatchError> {
+	) -> Result<(Self::CurrencyId, Self::CurrencyId, Self::CurrencyId), DispatchError> {
 		Self::init_pool(
 			&who,
 			proposal_id,

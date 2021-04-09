@@ -1,8 +1,5 @@
 use crate as couple;
-use frame_support::{
-	parameter_types,
-	traits::{GenesisBuild, Time},
-};
+use frame_support::{parameter_types, traits::Time};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{

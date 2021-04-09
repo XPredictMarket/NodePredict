@@ -29,7 +29,7 @@ pub trait LiquidityPool<AccountId, ProposalId, Moment, CategoryId> {
 		number: Self::Balance,
 		earn_fee: u32,
 		detail: Vec<u8>,
-	) -> Result<(), DispatchError>;
+	) -> Result<(Self::CurrencyId, Self::CurrencyId, Self::CurrencyId), DispatchError>;
 
 	fn time(proposal_id: ProposalId) -> Result<(Moment, Moment), DispatchError>;
 }

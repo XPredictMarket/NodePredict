@@ -96,8 +96,8 @@ impl LiquidityPool<u64, u32, u32, u32> for Couple {
 		_number: Self::Balance,
 		_earn_fee: u32,
 		_detail: Vec<u8>,
-	) -> Result<(), DispatchError> {
-		Ok(())
+	) -> Result<(u32, u32, u32), DispatchError> {
+		Ok((1, 2 , 3))
 	}
 
 	fn time(_proposal_id: u32) -> Result<(u32, u32), DispatchError> {

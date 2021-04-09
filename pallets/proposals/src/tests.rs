@@ -38,6 +38,23 @@ fn test_new_proposal() {
                 Some(ProposalStatus::OriginalPrediction)
             );
             assert_eq!(ProposalsModule::proposal_owner(0), Some(1));
+            assert_noop!(
+                ProposalsModule::new_proposal(
+                    Origin::signed(1),
+                    proposal.title.clone(),
+                    [
+                        "the one".as_bytes().to_vec(),
+                        "other one".as_bytes().to_vec()
+                    ],
+                    now,
+                    proposal.category_id,
+                    1,
+                    100,
+                    200,
+                    proposal.detail.clone()
+                ),
+                Error::<Test>::CurrencyIdNotAllowed
+            );
         }
     });
 }
@@ -75,10 +92,9 @@ fn test_set_status() {
                 0,
                 ProposalStatus::FormalPrediction
             ));
-            let proposal_status_changed_event = Event::proposals(crate::Event::ProposalStatusChanged(
-                0,
-                ProposalStatus::FormalPrediction,
-            ));
+            let proposal_status_changed_event = Event::proposals(
+                crate::Event::ProposalStatusChanged(0, ProposalStatus::FormalPrediction),
+            );
             assert!(System::events()
                 .iter()
                 .any(|record| record.event == proposal_status_changed_event));
