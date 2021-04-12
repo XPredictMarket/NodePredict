@@ -34,7 +34,7 @@ where
 	C: Send + Sync + 'static,
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
-	C::Api: couple_info_rpc::CoupleInfoRuntimeApi<
+	C::Api: proposals_info_rpc::CoupleInfoRuntimeApi<
 		Block,
 		VersionId,
 		ProposalId,
@@ -67,8 +67,8 @@ where
 		client.clone(),
 	)));
 
-	io.extend_with(couple_info_rpc::CoupleInfoApi::to_delegate(
-		couple_info_rpc::CoupleInfo::new(client.clone()),
+	io.extend_with(proposals_info_rpc::CoupleInfoApi::to_delegate(
+		proposals_info_rpc::CoupleInfo::new(client.clone()),
 	));
 
 	// Extend this RPC with a custom API by using the following syntax.

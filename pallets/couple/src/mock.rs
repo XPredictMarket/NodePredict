@@ -1,5 +1,5 @@
 use crate as couple;
-use frame_support::{parameter_types, traits::Time};
+use frame_support::{parameter_types, traits::{Time, GenesisBuild}};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
@@ -34,7 +34,7 @@ frame_support::construct_runtime!(
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
 		CoupleModule: couple::{Module, Call, Storage, Event<T>},
 		XPMRLTokens: xpmrl_tokens::{Module, Call, Storage, Event<T>},
-		XPMRLProposals: xpmrl_proposals::{Module, Call, Storage, Event<T>},
+		XPMRLProposals: xpmrl_proposals::{Module, Call, Storage, Config, Event<T>},
 		PalletBalances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 );
@@ -127,12 +127,17 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 		.unwrap();
 	let tokens_genesis = xpmrl_tokens::GenesisConfig::<Test> {
 		tokens: vec![
-			("USDT".as_bytes().to_vec(), 6),
-			("BTC".as_bytes().to_vec(), 8),
+			("Tether USD".as_bytes().to_vec(), "USDT".as_bytes().to_vec(), 6),
+			("Bitcoin".as_bytes().to_vec(), "BTC".as_bytes().to_vec(), 8),
 		],
 		balances: vec![(1, 100000), (2, 31250)],
 	};
 	tokens_genesis.assimilate_storage(&mut t).unwrap();
+	let proposals_genesis = xpmrl_proposals::GenesisConfig {
+		expiration_time: 3 * 24 * 60 * 60 * 1000,
+		liquidity_provider_fee_rate: 9000,
+	};
+	GenesisBuild::<Test>::assimilate_storage(&proposals_genesis, &mut t).unwrap();
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
 	ext

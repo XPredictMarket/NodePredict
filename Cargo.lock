@@ -825,35 +825,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
 
 [[package]]
-name = "couple-info-rpc"
-version = "0.1.0"
-dependencies = [
- "couple-info-runtime-api",
- "jsonrpc-core",
- "jsonrpc-core-client",
- "jsonrpc-derive",
- "parity-scale-codec",
- "serde",
- "sp-api",
- "sp-blockchain",
- "sp-rpc",
- "sp-runtime",
- "xpmrl-traits",
-]
-
-[[package]]
-name = "couple-info-runtime-api"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-api",
- "sp-runtime",
- "sp-std",
- "xpmrl-traits",
-]
-
-[[package]]
 name = "cpp_demangle"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3557,12 +3528,12 @@ dependencies = [
 name = "node-predict"
 version = "3.0.0"
 dependencies = [
- "couple-info-rpc",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
  "predict-runtime",
+ "proposals-info-rpc",
  "sc-basic-authorship",
  "sc-cli",
  "sc-client-api",
@@ -4376,7 +4347,6 @@ checksum = "ac74c624d6b2d21f425f752262f42188365d7b8ff1aff74c82e45136510a4857"
 name = "predict-runtime"
 version = "0.1.0"
 dependencies = [
- "couple-info-runtime-api",
  "frame-benchmarking",
  "frame-executive",
  "frame-support",
@@ -4393,6 +4363,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
+ "proposals-info-runtime-api",
  "serde",
  "sp-api",
  "sp-block-builder",
@@ -4490,6 +4461,35 @@ dependencies = [
  "parking_lot 0.11.1",
  "regex",
  "thiserror",
+]
+
+[[package]]
+name = "proposals-info-rpc"
+version = "0.1.0"
+dependencies = [
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "parity-scale-codec",
+ "proposals-info-runtime-api",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-rpc",
+ "sp-runtime",
+ "xpmrl-traits",
+]
+
+[[package]]
+name = "proposals-info-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
+ "xpmrl-traits",
 ]
 
 [[package]]

@@ -1,7 +1,7 @@
 [package]
 authors = ['XPredictMarket']
 edition = '2018'
-name = "couple-info-rpc"
+name = "proposals-info-rpc"
 version = "0.1.0"
 license = "Apache-2.0"
 repository = "https://github.com/XPredictMarket/NodePredict"
@@ -19,4 +19,4 @@ sp-rpc = { version = '3.0.0', default-features = false}
 sp-runtime = { version = '3.0.0', default-features = false}
 
 xpmrl-traits = { version = "0.1.0", default-features = false, path = "../../traits" }
-couple-info-runtime-api = { version = "0.1.0", path = "../runtime-api", default-features = false }
+proposals-info-runtime-api  = { version = "0.1.0", path = "../runtime-api", default-features = false }

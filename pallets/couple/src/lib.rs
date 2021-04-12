@@ -29,9 +29,8 @@ use xpmrl_utils::{runtime_format, storage_try_mutate, with_transaction_result};
 #[frame_support::pallet]
 pub mod pallet {
 	use super::{
-		proposal_account_info_try_mutate, proposal_total_market_fee_try_mutate,
-		proposal_total_market_liquid_try_mutate, proposal_total_optional_market_try_mutate,
-		value_changed,
+		proposal_total_market_fee_try_mutate, proposal_total_market_liquid_try_mutate,
+		proposal_total_market_try_mutate, proposal_total_optional_market_try_mutate, value_changed,
 	};
 	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
 	use frame_system::pallet_prelude::*;
@@ -448,11 +447,10 @@ pub mod pallet {
 			let balance = T::Tokens::balance(result_id, &who);
 			ensure!(balance >= Zero::zero(), Error::<T>::InsufficientBalance);
 			with_transaction_result(|| {
-				proposal_account_info_try_mutate!(
+				proposal_total_market_try_mutate!(
 					proposal_id,
-					who,
 					old_amount,
-					old_amount.checked_add(&balance).unwrap_or(Zero::zero())
+					old_amount.checked_sub(&balance).unwrap_or(Zero::zero())
 				)?;
 				T::Tokens::burn(result_id, &who, balance)?;
 				T::Tokens::appropriation(currency_id, &who, balance)?;
@@ -516,7 +514,7 @@ impl<T: Config> Pallet<T> {
 		let decimals = <T as xpmrl_proposals::Config>::EarnTradingFeeDecimals::get();
 		let one = pow(10u32, decimals.into());
 		let liquidity_provider_fee_rate: u32 =
-			ProposalsPallet::<T>::proposal_owner_fee_rate().unwrap_or(0);
+			ProposalsPallet::<T>::proposal_liquidity_provider_fee_rate().unwrap_or(0);
 
 		let mul_market_fee = market_fee
 			.checked_mul(&number)
@@ -544,10 +542,10 @@ impl<T: Config> Pallet<T> {
 
 			let decimals = <T as xpmrl_proposals::Config>::EarnTradingFeeDecimals::get();
 			let one = pow(10u32, decimals.into());
-			let owner_fee_rate: u32 = ProposalsPallet::<T>::proposal_owner_fee_rate().unwrap_or(0);
+			let liquidity_provider_fee_rate: u32 = ProposalsPallet::<T>::proposal_liquidity_provider_fee_rate().unwrap_or(0);
 
 			let mul_market_fee = market_fee
-				.checked_mul(&owner_fee_rate.into())
+				.checked_mul(&liquidity_provider_fee_rate.into())
 				.ok_or(Error::<T>::BalanceOverflow)?;
 			let fee = mul_market_fee
 				.checked_div(&one.into())

@@ -1,6 +1,6 @@
 use codec::Codec;
-use couple_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
-pub use couple_info_runtime_api::CoupleInfoApi as CoupleInfoRuntimeApi;
+use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
+pub use proposals_info_runtime_api::CoupleInfoApi as CoupleInfoRuntimeApi;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
 use sp_api::ProvideRuntimeApi;

@@ -43,7 +43,7 @@ pub use sp_runtime::{Perbill, Permill};
 
 pub use couple;
 pub use couple::pallet::Proposal;
-use couple_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
+use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
 /// Import the template pallet.
 pub use proposals;
 pub use tokens;
@@ -493,7 +493,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl couple_info_runtime_api::CoupleInfoApi<Block, VersionId, ProposalId, CategoryId, Balance, Moment, CurrencyId, AccountId> for Runtime {
+	impl proposals_info_runtime_api::CoupleInfoApi<Block, VersionId, ProposalId, CategoryId, Balance, Moment, CurrencyId, AccountId> for Runtime {
 		fn get_proposal_info(_: VersionId, proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment, CurrencyId> {
 			let proposal = Couple::proposals(proposal_id).unwrap_or(Default::default());
 			let (yes, no) = Couple::proposal_total_optional_market(proposal_id).unwrap_or(Default::default());

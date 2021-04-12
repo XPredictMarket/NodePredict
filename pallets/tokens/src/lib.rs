@@ -74,7 +74,7 @@ pub mod pallet {
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
-		pub tokens: Vec<(Vec<u8>, u8)>,
+		pub tokens: Vec<(Vec<u8>, Vec<u8>, u8)>,
 		pub balances: Vec<(T::AccountId, BalanceType<T>)>,
 	}
 
@@ -96,9 +96,9 @@ pub mod pallet {
 					.checked_add(&One::one())
 					.ok_or(Error::<T>::CurrencyIdOverflow)?;
 				CurrentCurrencyId::<T>::put(id);
-				for (symbol, decimals) in &self.tokens {
+				for (name, symbol, decimals) in &self.tokens {
 					let currency_id =
-						Pallet::<T>::inner_new_asset(symbol.clone(), symbol.clone(), *decimals)?;
+						Pallet::<T>::inner_new_asset(name.clone(), symbol.clone(), *decimals)?;
 					for (to, number) in &self.balances {
 						Pallet::<T>::inner_mint_to(currency_id, to, *number)?;
 					}

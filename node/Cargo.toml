@@ -50,7 +50,7 @@ frame-benchmarking = { version = "3.0.0" }
 frame-benchmarking-cli = { version = "3.0.0" }
 
 predict-runtime = { version = "0.1.0", path = "../runtime" }
-couple-info-rpc = { version = "0.1.0", path = "../pallets/couple/rpc" }
+proposals-info-rpc = { version = "0.1.0", path = "../pallets/proposals/rpc" }
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0" }

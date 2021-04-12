@@ -71,7 +71,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
 					get_account_id_from_address("5CqffqfKmUmi9hBEsM8PVkAkw8PUYtjMPi1zrbrgsKa9u5Ui"),
 				],
 				true,
-				vec![("DOT", 8), ("USDT", 6), ("BTC", 8), ("ETH", 18)],
+				vec![("Test Coin", "TestC", 8)],
 				vec![
 					(
 						get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -153,7 +153,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 					get_account_id_from_address("5CqffqfKmUmi9hBEsM8PVkAkw8PUYtjMPi1zrbrgsKa9u5Ui"),
 				],
 				true,
-				vec![("DOT", 8), ("USDT", 6), ("BTC", 8), ("ETH", 18)],
+				vec![("Test Coin", "TestC", 8)],
 				vec![
 					(
 						get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -204,7 +204,7 @@ fn testnet_genesis(
 	root_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
 	_enable_println: bool,
-	tokens: Vec<(&str, u8)>,
+	tokens: Vec<(&str, &str, u8)>,
 	balances: Vec<(AccountId, u128)>,
 ) -> GenesisConfig {
 	GenesisConfig {
@@ -237,13 +237,18 @@ fn testnet_genesis(
 		tokens: Some(TokensConfig {
 			tokens: tokens
 				.iter()
-				.map(|x| (x.0.clone().as_bytes().to_vec(), x.1))
+				.map(|x| {
+					(
+						x.0.clone().as_bytes().to_vec(),
+						x.1.clone().as_bytes().to_vec(),
+						x.2,
+					)
+				})
 				.collect(),
 			balances,
 		}),
 		proposals: Some(ProposalsConfig {
 			expiration_time: 3 * 24 * 60 * 60 * 1000,
-			owner_fee_rate: 1000,
 			liquidity_provider_fee_rate: 9000,
 		}),
 	}

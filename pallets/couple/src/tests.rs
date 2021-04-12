@@ -248,6 +248,7 @@ fn test_retrieval() {
 
         assert_eq!(XPMRLTokens::balance_of(1, 1), Some(86250));
         assert_eq!(XPMRLTokens::balance_of(2, 1), Some(45000));
+        assert_eq!(CoupleModule::proposal_total_market(0), Some(0));
     });
 }
 

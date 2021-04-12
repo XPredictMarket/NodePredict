@@ -114,17 +114,12 @@ pub mod pallet {
 	pub type ProposalAutomaticExpirationTime<T: Config> = StorageValue<_, MomentOf<T>>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn proposal_owner_fee_rate)]
-	pub type ProposalOwnerFeeRate<T: Config> = StorageValue<_, u32>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn proposal_liquidity_provider_fee_rate)]
 	pub type ProposalLiquidityProviderFeeRate<T: Config> = StorageValue<_, u32>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		pub expiration_time: u32,
-		pub owner_fee_rate: u32,
 		pub liquidity_provider_fee_rate: u32,
 	}
 
@@ -133,7 +128,6 @@ pub mod pallet {
 		fn default() -> Self {
 			Self {
 				expiration_time: 3 * 24 * 60 * 60 * 1000,
-				owner_fee_rate: 1000,
 				liquidity_provider_fee_rate: 9000,
 			}
 		}
@@ -143,7 +137,6 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
 			ProposalAutomaticExpirationTime::<T>::set(Some(self.expiration_time.into()));
-			ProposalOwnerFeeRate::<T>::set(Some(self.owner_fee_rate));
 			ProposalLiquidityProviderFeeRate::<T>::set(Some(self.liquidity_provider_fee_rate));
 		}
 	}
@@ -164,6 +157,7 @@ pub mod pallet {
 		TokenIdNotZero,
 		CloseTimeMustLargeThanNow,
 		CurrencyIdNotAllowed,
+		NumberMustMoreThanZero,
 	}
 
 	#[pallet::hooks]
@@ -201,6 +195,7 @@ pub mod pallet {
 				!ProposalUsedCurrencyId::<T>::contains_key(currency_id),
 				Error::<T>::CurrencyIdNotAllowed
 			);
+			ensure!(number > Zero::zero(), Error::<T>::NumberMustMoreThanZero);
 			let proposal_id = with_transaction_result(|| {
 				let proposal_id = Self::inner_new_proposal_v1(
 					&who,
