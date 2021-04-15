@@ -52,6 +52,7 @@ pub fn mainnet_test_config() -> Result<ChainSpec, String> {
 					get_account_id_from_address("5DLqpJLQBSytLM2Zjgn9Ab8tcdkrvteSfx6yK3vTiwrEuFnp"),
 					get_account_id_from_address("5Fk7dfYpuWT8sK8BMcDYDHaz2H6ZuaJpwAHajURwkzAmRX7C"),
 					get_account_id_from_address("5CqffqfKmUmi9hBEsM8PVkAkw8PUYtjMPi1zrbrgsKa9u5Ui"),
+					hex!["ec548f5f534d715555648d2ca7d56a22be9c13b13f1678586bc8932189788656"].into(),
 				],
 				true,
 				vec![("Test Coin", "TestC", 8)],
@@ -120,7 +121,9 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
 				// Sudo account
 				hex!["ec548f5f534d715555648d2ca7d56a22be9c13b13f1678586bc8932189788656"].into(),
 				// Pre-funded accounts
-				vec![],
+				vec![
+					hex!["ec548f5f534d715555648d2ca7d56a22be9c13b13f1678586bc8932189788656"].into(),
+				],
 				true,
 				vec![],
 				vec![],
