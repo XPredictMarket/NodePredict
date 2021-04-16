@@ -143,6 +143,18 @@ pub mod pallet {
 	pub type ProposalTotalMarketLiquid<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::ProposalId, BalanceOf<T>, OptionQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn proposal_owner_already_withdrawn_fee)]
+	pub type ProposalOwnerAlreadyWithdrawnFee<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		T::ProposalId,
+		Twox64Concat,
+		T::AccountId,
+		BalanceOf<T>,
+		OptionQuery,
+	>;
+
 	#[pallet::event]
 	#[pallet::metadata(T::AccountId = "AccountId")]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -537,7 +549,9 @@ impl<T: Config> Pallet<T> {
 	) -> Result<BalanceOf<T>, DispatchError> {
 		let owner = ProposalsPallet::<T>::proposal_owner(proposal_id)
 			.ok_or(Error::<T>::ProposalIdNotExist)?;
-		if owner == *who {
+		if owner == *who && 
+			!ProposalOwnerAlreadyWithdrawnFee::<T>::contains_key(proposal_id, &who)
+		{
 			let market_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
 
 			let decimals = <T as xpmrl_proposals::Config>::EarnTradingFeeDecimals::get();
@@ -553,6 +567,7 @@ impl<T: Config> Pallet<T> {
 			let fee = market_fee
 				.checked_sub(&fee)
 				.ok_or(Error::<T>::BalanceOverflow)?;
+			ProposalOwnerAlreadyWithdrawnFee::<T>::insert(proposal_id, &who, fee);
 			Ok(fee)
 		} else {
 			Ok(Zero::zero())
