@@ -130,6 +130,7 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
 			)
 		},
 		// Bootnodes
+		// "/ip4/127.0.0.1/tcp/30333/p2p/QmSk5HQbn6LhUwDiNMseVUjuRYhEtYj4aUZ6WfWoGURpdV".parse().unwrap()
 		vec![],
 		// Telemetry
 		None,
@@ -195,6 +196,7 @@ fn predict_genesis(
 		proposals: Some(ProposalsConfig {
 			expiration_time: 3 * 24 * 60 * 60 * 1000,
 			liquidity_provider_fee_rate: 9000,
+			minimum_interval_time: 60 * 1000,
 		}),
 	}
 }

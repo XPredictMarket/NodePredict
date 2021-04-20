@@ -136,6 +136,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	let proposals_genesis = xpmrl_proposals::GenesisConfig {
 		expiration_time: 3 * 24 * 60 * 60 * 1000,
 		liquidity_provider_fee_rate: 9000,
+		minimum_interval_time: 60 * 1000,
 	};
 	GenesisBuild::<Test>::assimilate_storage(&proposals_genesis, &mut t).unwrap();
 	let mut ext = sp_io::TestExternalities::new(t);

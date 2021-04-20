@@ -114,6 +114,10 @@ pub mod pallet {
 	pub type ProposalAutomaticExpirationTime<T: Config> = StorageValue<_, MomentOf<T>>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn proposal_minimum_interval_time)]
+	pub type ProposaMinimumIntervalTime<T: Config> = StorageValue<_, MomentOf<T>>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn proposal_liquidity_provider_fee_rate)]
 	pub type ProposalLiquidityProviderFeeRate<T: Config> = StorageValue<_, u32>;
 
@@ -121,6 +125,7 @@ pub mod pallet {
 	pub struct GenesisConfig {
 		pub expiration_time: u32,
 		pub liquidity_provider_fee_rate: u32,
+		pub minimum_interval_time: u32,
 	}
 
 	#[cfg(feature = "std")]
@@ -129,6 +134,7 @@ pub mod pallet {
 			Self {
 				expiration_time: 3 * 24 * 60 * 60 * 1000,
 				liquidity_provider_fee_rate: 9000,
+				minimum_interval_time: 60 * 1000,
 			}
 		}
 	}
@@ -138,6 +144,7 @@ pub mod pallet {
 		fn build(&self) {
 			ProposalAutomaticExpirationTime::<T>::set(Some(self.expiration_time.into()));
 			ProposalLiquidityProviderFeeRate::<T>::set(Some(self.liquidity_provider_fee_rate));
+			ProposaMinimumIntervalTime::<T>::set(Some(self.minimum_interval_time.into()));
 		}
 	}
 
@@ -187,8 +194,10 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			ensure!(category_id != Zero::zero(), Error::<T>::CategoryIdNotZero);
 			ensure!(currency_id != Zero::zero(), Error::<T>::TokenIdNotZero);
+			let minimum_interval_time =
+				ProposaMinimumIntervalTime::<T>::get().unwrap_or(Zero::zero());
 			ensure!(
-				close_time >= T::Time::now(),
+				close_time - T::Time::now() > minimum_interval_time,
 				Error::<T>::CloseTimeMustLargeThanNow
 			);
 			ensure!(
