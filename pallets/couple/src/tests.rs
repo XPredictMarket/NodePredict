@@ -110,6 +110,11 @@ fn test_remove_liquidity() {
             CoupleModule::remove_liquidity(Origin::signed(1), 0, number),
             Error::<Test>::ProposalAbnormalState
         );
+        assert_ok!(XPMRLProposals::set_status(
+            Origin::root(),
+            0,
+            ProposalStatus::WaitingForResults
+        ));
         assert_ok!(CoupleModule::set_result(Origin::root(), 0, 3));
         assert_noop!(
             CoupleModule::remove_liquidity(Origin::signed(1), 1, number),
@@ -210,11 +215,11 @@ fn test_retrieval() {
     new_test_ext().execute_with(|| {
         let number = befor_test();
         assert_noop!(
-            CoupleModule::retrieval(Origin::signed(1), 1),
+            CoupleModule::retrieval(Origin::signed(1), 1, 3, number),
             Error::<Test>::ProposalIdNotExist
         );
         assert_noop!(
-            CoupleModule::retrieval(Origin::signed(1), 0),
+            CoupleModule::retrieval(Origin::signed(1), 0, 3, number),
             Error::<Test>::ProposalAbnormalState
         );
         assert_ok!(XPMRLProposals::set_status(
@@ -223,7 +228,7 @@ fn test_retrieval() {
             ProposalStatus::End
         ));
         assert_noop!(
-            CoupleModule::retrieval(Origin::signed(1), 0),
+            CoupleModule::retrieval(Origin::signed(1), 0, 3, number),
             Error::<Test>::ProposalNotResult
         );
         assert_ok!(XPMRLProposals::set_status(
@@ -232,15 +237,20 @@ fn test_retrieval() {
             ProposalStatus::FormalPrediction
         ));
         assert_ok!(CoupleModule::buy(Origin::signed(2), 0, 3, 31250));
+        assert_ok!(XPMRLProposals::set_status(
+            Origin::root(),
+            0,
+            ProposalStatus::WaitingForResults
+        ));
         assert_ok!(CoupleModule::set_result(Origin::root(), 0, 3));
         assert_ok!(CoupleModule::remove_liquidity(Origin::signed(1), 0, number));
-        assert_ok!(CoupleModule::retrieval(Origin::signed(1), 0));
+        assert_ok!(CoupleModule::retrieval(Origin::signed(1), 0, 3, number));
         let retrieval_event = Event::couple(crate::Event::Retrieval(1, 0, 3, 0));
         assert!(System::events()
             .iter()
             .any(|record| record.event == retrieval_event));
 
-        assert_ok!(CoupleModule::retrieval(Origin::signed(2), 0));
+        assert_ok!(CoupleModule::retrieval(Origin::signed(2), 0, 3, number));
         let retrieval_event = Event::couple(crate::Event::Retrieval(2, 0, 3, 45000));
         assert!(System::events()
             .iter()
@@ -256,6 +266,11 @@ fn test_retrieval() {
 fn test_set_result() {
     new_test_ext().execute_with(|| {
         let _ = befor_test();
+        assert_ok!(XPMRLProposals::set_status(
+            Origin::root(),
+            0,
+            ProposalStatus::WaitingForResults
+        ));
         assert_noop!(
             CoupleModule::set_result(Origin::root(), 0, 5),
             Error::<Test>::CurrencyIdNotFound

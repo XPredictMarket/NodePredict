@@ -48,6 +48,17 @@ pub mod pallet {
 	pub(crate) type ProposalIdOf<T> = <T as xpmrl_proposals::Config>::ProposalId;
 	pub(crate) type MomentOf<T> = <<T as xpmrl_proposals::Config>::Time as Time>::Moment;
 
+	macro_rules! ensure_optional_id_belong_proposal {
+		($id: ident, $proposal_id: ident) => {
+			let (asset_id_1, asset_id_2) =
+				PoolPairs::<T>::get($proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+			ensure!(
+				$id == asset_id_1 || $id == asset_id_2,
+				Error::<T>::CurrencyIdNotFound
+			);
+		};
+	}
+
 	#[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, Default)]
 	pub struct Proposal<CategoryId> {
 		pub title: Vec<u8>,
@@ -139,8 +150,18 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, T::ProposalId, BalanceOf<T>, OptionQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn proposal_finally_market_fee)]
+	pub type ProposalFinallyMarketFee<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::ProposalId, BalanceOf<T>, OptionQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn proposal_total_market_liquid)]
 	pub type ProposalTotalMarketLiquid<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::ProposalId, BalanceOf<T>, OptionQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn proposal_finally_market_liquid)]
+	pub type ProposalFinallyMarketLiquid<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::ProposalId, BalanceOf<T>, OptionQuery>;
 
 	#[pallet::storage]
@@ -249,13 +270,15 @@ pub mod pallet {
 				PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
 			with_transaction_result(|| {
 				T::Tokens::burn(liquidate_currency_id, &who, number)?;
-				let total_liquid = proposal_total_market_liquid_try_mutate!(
+				proposal_total_market_liquid_try_mutate!(
 					proposal_id,
 					old_value,
 					old_value
 						.checked_sub(&number)
 						.ok_or(Error::<T>::BalanceOverflow)?
 				)?;
+				let total_liquid =
+					ProposalFinallyMarketLiquid::<T>::get(proposal_id).unwrap_or(Zero::zero());
 				let fee = Self::get_fee_of_liquid(proposal_id, number, total_liquid)?;
 				let creater_fee = Self::get_fee_of_creator(&who, proposal_id)?;
 				let fee = fee
@@ -324,12 +347,7 @@ pub mod pallet {
 			);
 			let currency_id =
 				ProposalCurrencyId::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
-			let (asset_id_1, asset_id_2) =
-				PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
-			ensure!(
-				optional_currency_id == asset_id_1 || optional_currency_id == asset_id_2,
-				Error::<T>::CurrencyIdNotFound
-			);
+			ensure_optional_id_belong_proposal!(optional_currency_id, proposal_id);
 			let other_currency = Self::get_other_optional_id(proposal_id, optional_currency_id)?;
 			let actual_number = with_transaction_result(|| {
 				let (actual_number, fee) = Self::get_fee(proposal_id, number)?;
@@ -378,12 +396,7 @@ pub mod pallet {
 			);
 			let currency_id =
 				ProposalCurrencyId::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
-			let (asset_id_1, asset_id_2) =
-				PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
-			ensure!(
-				optional_currency_id == asset_id_1 || optional_currency_id == asset_id_2,
-				Error::<T>::CurrencyIdNotFound
-			);
+			ensure_optional_id_belong_proposal!(optional_currency_id, proposal_id);
 			let other_currency = Self::get_other_optional_id(proposal_id, optional_currency_id)?;
 			let actual_number = with_transaction_result(|| {
 				T::Tokens::donate(optional_currency_id, &who, number)?;
@@ -445,6 +458,8 @@ pub mod pallet {
 		pub fn retrieval(
 			origin: OriginFor<T>,
 			proposal_id: ProposalIdOf<T>,
+			optional_currency_id: CurrencyIdOf<T>,
+			number: BalanceOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 			let status = Self::get_proposal_status(proposal_id)?;
@@ -452,22 +467,28 @@ pub mod pallet {
 				status == ProposalStatus::End,
 				Error::<T>::ProposalAbnormalState
 			);
+			ensure_optional_id_belong_proposal!(optional_currency_id, proposal_id);
 			let result_id =
 				ProposalResult::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotResult)?;
-			let currency_id =
-				ProposalCurrencyId::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
-			let balance = T::Tokens::balance(result_id, &who);
+			let balance = T::Tokens::balance(optional_currency_id, &who);
 			ensure!(balance >= Zero::zero(), Error::<T>::InsufficientBalance);
-			with_transaction_result(|| {
-				proposal_total_market_try_mutate!(
-					proposal_id,
-					old_amount,
-					old_amount.checked_sub(&balance).unwrap_or(Zero::zero())
-				)?;
-				T::Tokens::burn(result_id, &who, balance)?;
-				T::Tokens::appropriation(currency_id, &who, balance)?;
-				Ok(())
-			})?;
+			let number = if number >= balance { balance } else { number };
+			if optional_currency_id == result_id {
+				let currency_id = ProposalCurrencyId::<T>::get(proposal_id)
+					.ok_or(Error::<T>::ProposalIdNotExist)?;
+				with_transaction_result(|| {
+					proposal_total_market_try_mutate!(
+						proposal_id,
+						old_amount,
+						old_amount.checked_sub(&number).unwrap_or(Zero::zero())
+					)?;
+					T::Tokens::burn(result_id, &who, number)?;
+					T::Tokens::appropriation(currency_id, &who, number)?;
+					Ok(())
+				})?;
+			} else {
+				T::Tokens::burn(optional_currency_id, &who, number)?;
+			}
 			Self::deposit_event(Event::Retrieval(who, proposal_id, result_id, balance));
 			Ok(().into())
 		}
@@ -481,18 +502,18 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 			let status = Self::get_proposal_status(proposal_id)?;
 			ensure!(
-				status != ProposalStatus::OriginalPrediction || status != ProposalStatus::End,
+				status == ProposalStatus::WaitingForResults,
 				Error::<T>::ProposalAbnormalState
 			);
-			let (asset_id_1, asset_id_2) =
-				PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
-			ensure!(
-				currency_id == asset_id_1 || currency_id == asset_id_2,
-				Error::<T>::CurrencyIdNotFound
-			);
+			ensure_optional_id_belong_proposal!(currency_id, proposal_id);
+			let finally_liquid =
+				ProposalTotalMarketLiquid::<T>::get(proposal_id).unwrap_or(Zero::zero());
+			let finally_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
 			with_transaction_result(|| {
 				ProposalsPallet::<T>::set_new_status(proposal_id, ProposalStatus::End)?;
 				ProposalResult::<T>::insert(proposal_id, currency_id);
+				ProposalFinallyMarketFee::<T>::insert(proposal_id, finally_fee);
+				ProposalFinallyMarketLiquid::<T>::insert(proposal_id, finally_liquid);
 				Ok(())
 			})?;
 			Self::deposit_event(Event::SetResult(proposal_id, currency_id));
@@ -521,7 +542,7 @@ impl<T: Config> Pallet<T> {
 		number: BalanceOf<T>,
 		total_liquid: BalanceOf<T>,
 	) -> Result<BalanceOf<T>, DispatchError> {
-		let market_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
+		let market_fee = ProposalFinallyMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
 
 		let decimals = <T as xpmrl_proposals::Config>::EarnTradingFeeDecimals::get();
 		let one = pow(10u32, decimals.into());
@@ -549,14 +570,15 @@ impl<T: Config> Pallet<T> {
 	) -> Result<BalanceOf<T>, DispatchError> {
 		let owner = ProposalsPallet::<T>::proposal_owner(proposal_id)
 			.ok_or(Error::<T>::ProposalIdNotExist)?;
-		if owner == *who && 
-			!ProposalOwnerAlreadyWithdrawnFee::<T>::contains_key(proposal_id, &who)
+		if owner == *who && !ProposalOwnerAlreadyWithdrawnFee::<T>::contains_key(proposal_id, &who)
 		{
-			let market_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
+			let market_fee =
+				ProposalFinallyMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
 
 			let decimals = <T as xpmrl_proposals::Config>::EarnTradingFeeDecimals::get();
 			let one = pow(10u32, decimals.into());
-			let liquidity_provider_fee_rate: u32 = ProposalsPallet::<T>::proposal_liquidity_provider_fee_rate().unwrap_or(0);
+			let liquidity_provider_fee_rate: u32 =
+				ProposalsPallet::<T>::proposal_liquidity_provider_fee_rate().unwrap_or(0);
 
 			let mul_market_fee = market_fee
 				.checked_mul(&liquidity_provider_fee_rate.into())

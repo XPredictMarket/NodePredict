@@ -3526,7 +3526,7 @@ dependencies = [
 
 [[package]]
 name = "node-predict"
-version = "3.0.0"
+version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -3565,7 +3565,7 @@ dependencies = [
 
 [[package]]
 name = "node-predict-dev"
-version = "3.0.0"
+version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",

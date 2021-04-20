@@ -1,6 +1,6 @@
 [package]
 name = "node-predict"
-version = "3.0.0"
+version = "0.1.0"
 authors = ["XPredictMarket"]
 description = "A new FRAME-based Substrate node, ready for hacking."
 edition = "2018"

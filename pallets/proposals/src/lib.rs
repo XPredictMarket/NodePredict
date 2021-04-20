@@ -247,7 +247,7 @@ impl<T: Config> Pallet<T> {
 					== Status::OriginalPrediction)
 				|| (now > end)
 			{
-				Self::set_new_status(index, Status::End)?;
+				Self::set_new_status(index, Status::WaitingForResults)?;
 			}
 			index = index
 				.checked_add(&One::one())
