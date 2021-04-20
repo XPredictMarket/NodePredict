@@ -242,10 +242,9 @@ impl<T: Config> Pallet<T> {
 			}
 			let (start, end) = T::LiquidityPool::time(index)?;
 			let diff = now.checked_sub(&start).ok_or("time sub overflow")?;
-			if (diff > expiration_time
-				&& ProposalStatus::<T>::get(index).unwrap_or(Status::OriginalPrediction)
-					== Status::OriginalPrediction)
-				|| (now > end)
+			let state = ProposalStatus::<T>::get(index).unwrap_or(Status::OriginalPrediction);
+			if (diff > expiration_time && state == Status::OriginalPrediction)
+				|| (now > end && state != Status::End)
 			{
 				Self::set_new_status(index, Status::WaitingForResults)?;
 			}
