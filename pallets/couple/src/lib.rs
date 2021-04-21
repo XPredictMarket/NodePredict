@@ -145,6 +145,11 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, T::ProposalId, (BalanceOf<T>, BalanceOf<T>), OptionQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn proposal_finally_optional_market)]
+	pub type ProposalFinallyTotalOptionalMarket<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::ProposalId, (BalanceOf<T>, BalanceOf<T>), OptionQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn proposal_total_market_fee)]
 	pub type ProposalTotalMarketFee<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::ProposalId, BalanceOf<T>, OptionQuery>;
@@ -268,6 +273,9 @@ pub mod pallet {
 				.ok_or(Error::<T>::ProposalIdNotExist)?;
 			let (asset_id_1, asset_id_2) =
 				PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+			let (finally_o1, finally_o2) =
+				ProposalFinallyTotalOptionalMarket::<T>::get(proposal_id)
+					.ok_or(Error::<T>::ProposalIdNotExist)?;
 			with_transaction_result(|| {
 				T::Tokens::burn(liquidate_currency_id, &who, number)?;
 				proposal_total_market_liquid_try_mutate!(
@@ -292,13 +300,13 @@ pub mod pallet {
 						.ok_or(Error::<T>::BalanceOverflow)?
 				)?;
 				let (o1, o2) = proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
-					let new_o1 = o1.checked_mul(&number).ok_or(Error::<T>::BalanceOverflow)?;
+					let new_o1 = finally_o1.checked_mul(&number).ok_or(Error::<T>::BalanceOverflow)?;
 					let new_o1 = new_o1
 						.checked_div(&total_liquid.into())
 						.ok_or(Error::<T>::BalanceOverflow)?;
 					let new_o1 = o1.checked_sub(&new_o1).ok_or(Error::<T>::BalanceOverflow)?;
 
-					let new_o2 = o2.checked_mul(&number).ok_or(Error::<T>::BalanceOverflow)?;
+					let new_o2 = finally_o2.checked_mul(&number).ok_or(Error::<T>::BalanceOverflow)?;
 					let new_o2 = new_o2
 						.checked_div(&total_liquid.into())
 						.ok_or(Error::<T>::BalanceOverflow)?;
@@ -509,11 +517,14 @@ pub mod pallet {
 			let finally_liquid =
 				ProposalTotalMarketLiquid::<T>::get(proposal_id).unwrap_or(Zero::zero());
 			let finally_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or(Zero::zero());
+			let finally_optional = ProposalTotalOptionalMarket::<T>::get(proposal_id)
+				.ok_or(Error::<T>::ProposalIdNotExist)?;
 			with_transaction_result(|| {
 				ProposalsPallet::<T>::set_new_status(proposal_id, ProposalStatus::End)?;
 				ProposalResult::<T>::insert(proposal_id, currency_id);
 				ProposalFinallyMarketFee::<T>::insert(proposal_id, finally_fee);
 				ProposalFinallyMarketLiquid::<T>::insert(proposal_id, finally_liquid);
+				ProposalFinallyTotalOptionalMarket::<T>::insert(proposal_id, finally_optional);
 				Ok(())
 			})?;
 			Self::deposit_event(Event::SetResult(proposal_id, currency_id));
@@ -763,17 +774,13 @@ impl<T: Config> Pallet<T> {
 		proposal_total_market_try_mutate!(
 			proposal_id,
 			old_amount,
-			old_amount
-				.checked_sub(&diff)
-				.ok_or(Error::<T>::BalanceOverflow)?
+			old_amount.checked_sub(&diff).unwrap_or(Zero::zero())
 		)?;
 		proposal_account_info_try_mutate!(
 			proposal_id,
 			who,
 			old_amount,
-			old_amount
-				.checked_sub(&diff)
-				.ok_or(Error::<T>::BalanceOverflow)?
+			old_amount.checked_sub(&diff).unwrap_or(Zero::zero())
 		)?;
 		Ok(())
 	}
