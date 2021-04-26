@@ -275,7 +275,6 @@ impl<T: Config> Pallet<T> {
         if new_status == Status::End {
             T::LiquidityPool::finally_locked(proposal_id)?;
         }
-        T::LiquidityPool::finally_locked(proposal_id)?;
         ProposalStatus::<T>::try_mutate(proposal_id, |status| -> Result<Status, DispatchError> {
             let old_status = status.ok_or(Error::<T>::ProposalIdNotExist)?;
             ensure!(old_status != new_status, Error::<T>::StatusMustDiff);
