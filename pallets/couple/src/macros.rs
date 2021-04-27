@@ -50,10 +50,7 @@ macro_rules! proposal_total_optional_market_try_mutate {
                 let ($o1, $o2) = item.ok_or(Error::<T>::ProposalIdNotExist)?;
                 let (new_o1, new_o2) = $new_expr;
                 *item = Some((new_o1, new_o2));
-                Ok((
-                    sub_abs!(new_o1, $o1, Error::<T>::BalanceOverflow)?,
-                    sub_abs!(new_o2, $o2, Error::<T>::BalanceOverflow)?,
-                ))
+                Ok((sub_abs!(new_o1, $o1), sub_abs!(new_o2, $o2)))
             }
         )
     };

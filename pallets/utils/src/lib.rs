@@ -39,11 +39,11 @@ macro_rules! storage_try_mutate {
 
 #[macro_export]
 macro_rules! sub_abs {
-    ($number_1: ident, $number_2: ident, $exception: path) => {
+    ($number_1: ident, $number_2: ident) => {
         if $number_1 < $number_2 {
-            $number_2.checked_sub(&$number_1).ok_or($exception)
+            $number_2.checked_sub(&$number_1).unwrap_or(Zero::zero())
         } else {
-            $number_1.checked_sub(&$number_2).ok_or($exception)
+            $number_1.checked_sub(&$number_2).unwrap_or(Zero::zero())
         }
     };
 }
