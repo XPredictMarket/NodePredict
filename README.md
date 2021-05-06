@@ -47,7 +47,7 @@ cargo build --release --features real-overseer
   --port 30334 \
   --validator \
   --bob \
-  --bootnodes /ip4/127.0.0.1/tcp/50555/p2p/<ALICE's peer id>
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/<ALICE's peer id>
 ```
 
 ### Run Parachain
