@@ -28,9 +28,10 @@ pub mod pallet {
         dispatch::DispatchResultWithPostInfo,
         pallet_prelude::*,
         traits::{Currency, ReservableCurrency},
+        PalletId,
     };
     use frame_system::pallet_prelude::*;
-    use sp_runtime::{traits::*, ModuleId};
+    use sp_runtime::traits::*;
     use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, vec::Vec};
     use xpmrl_utils::with_transaction_result;
 
@@ -61,7 +62,7 @@ pub mod pallet {
         type NativeCurrencyId: Get<CurrencyIdOf<Self>>;
 
         #[pallet::constant]
-        type ModuleId: Get<ModuleId>;
+        type ModuleId: Get<PalletId>;
     }
 
     #[pallet::pallet]

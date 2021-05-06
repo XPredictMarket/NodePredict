@@ -1,5 +1,5 @@
 [package]
-name = "predict-runtime"
+name = "predict-rococo-runtime"
 version = "0.1.0"
 authors = ["XPredictMarket"]
 edition = "2018"
@@ -10,81 +10,61 @@ repository = "https://github.com/XPredictMarket/NodePredict"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+smallvec = { version = "1.6.1" }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
-
-pallet-aura = { version = "3.0.0", default-features = false }
-pallet-balances = { version = "3.0.0", default-features = false }
-frame-support = { version = "3.0.0", default-features = false }
-pallet-grandpa = { version = "3.0.0", default-features = false }
-pallet-randomness-collective-flip = { version = "3.0.0", default-features = false }
-pallet-sudo = { version = "3.0.0", default-features = false }
-frame-system = { version = "3.0.0", default-features = false }
-pallet-timestamp = { version = "3.0.0", default-features = false }
-pallet-transaction-payment = { version = "3.0.0", default-features = false }
-frame-executive = { version = "3.0.0", default-features = false }
-serde = { version = "1.0.101", optional = true, features = ["derive"] }
-sp-api = { version = "3.0.0", default-features = false }
-sp-block-builder = { default-features = false, version = "3.0.0"}
-sp-consensus-aura = { version = "0.9.0", default-features = false }
-sp-core = { version = "3.0.0", default-features = false }
-sp-inherents = { default-features = false, version = "3.0.0"}
-sp-offchain = { version = "3.0.0", default-features = false }
-sp-runtime = { version = "3.0.0", default-features = false }
-sp-session = { version = "3.0.0", default-features = false }
-sp-std = { version = "3.0.0", default-features = false }
-sp-transaction-pool = { version = "3.0.0", default-features = false }
-sp-version = { version = "3.0.0", default-features = false }
-
-frame-system-rpc-runtime-api = { version = "3.0.0", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { version = "3.0.0", default-features = false }
-
-frame-benchmarking = { version = "3.0.0", default-features = false, optional = true }
-frame-system-benchmarking = { version = "3.0.0", default-features = false, optional = true }
 hex-literal = { version = "0.3.1", optional = true }
+serde = { version = "1.0.119", optional = true, features = ["derive"] }
+
+frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", optional = true, default-features = false }
+frame-executive = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false, optional = true }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+
+sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+sp-block-builder = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", default-features = false, version = "3.0.0"}
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+sp-inherents = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", default-features = false, version = "3.0.0"}
+sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", default-features = false, version = "3.0.0"}
+
+pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+pallet-sudo = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+sp-offchain = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "3.0.0", default-features = false }
+
+parachain-info = { git = "https://github.com/paritytech/cumulus.git", branch = "rococo-v1", default-features = false, version="0.1.0" }
+cumulus-pallet-parachain-system = { git = "https://github.com/paritytech/cumulus.git", branch = "rococo-v1", default-features = false }
+cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus.git", branch = "rococo-v1", default-features = false }
+cumulus-pallet-xcm = { git = "https://github.com/paritytech/cumulus.git", branch = "rococo-v1", default-features = false }
+cumulus-pallet-xcmp-queue = { git = "https://github.com/paritytech/cumulus.git", branch = "rococo-v1", default-features = false }
+cumulus-primitives-utility = { git = "https://github.com/paritytech/cumulus.git", branch = "rococo-v1", default-features = false }
+
+polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
+xcm = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
+xcm-builder = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
+xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
+pallet-xcm = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
 
 proposals = { version = "0.1.0", default-features = false, path = "../pallets/proposals", package = "xpmrl-proposals" }
 couple = { version = "0.1.0", default-features = false, path = "../pallets/couple", package = "xpmrl-couple" }
-proposals-info-runtime-api = { version = "0.1.0", path = "../pallets/proposals/runtime-api", default-features = false }
+proposals-info-runtime-api = { version = "0.1.0", default-features = false, path = "../pallets/proposals/runtime-api" }
 tokens = { version = "0.1.0", default-features = false, path = "../pallets/tokens", package = "xpmrl-tokens" }
 traits = { version = "0.1.0", default-features = false, path = "../pallets/traits", package = "xpmrl-traits" }
 
 [build-dependencies]
-substrate-wasm-builder = { version = "4.0.0" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = "4.0.0" }
 
 [features]
 default = ["std"]
-std = [
-	"codec/std",
-	"frame-executive/std",
-	"frame-support/std",
-	"pallet-aura/std",
-	"pallet-balances/std",
-	"pallet-grandpa/std",
-	"pallet-randomness-collective-flip/std",
-	"pallet-sudo/std",
-	"pallet-timestamp/std",
-	"pallet-transaction-payment/std",
-	"pallet-transaction-payment-rpc-runtime-api/std",
-	"serde",
-	"sp-api/std",
-	"sp-block-builder/std",
-	"sp-consensus-aura/std",
-	"sp-core/std",
-	"sp-inherents/std",
-	"sp-offchain/std",
-	"sp-runtime/std",
-	"sp-session/std",
-	"sp-std/std",
-	"sp-transaction-pool/std",
-	"sp-version/std",
-	"frame-system/std",
-	"frame-system-rpc-runtime-api/std",
-	"couple/std",
-	"proposals-info-runtime-api/std",
-	"proposals/std",
-	"tokens/std",
-	"traits/std",
-]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
 	"frame-benchmarking",
@@ -94,4 +74,42 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
+]
+std = [
+	"codec/std",
+	"serde",
+	"sp-api/std",
+	"sp-std/std",
+	"sp-io/std",
+	"sp-core/std",
+	"sp-runtime/std",
+	"sp-version/std",
+	"sp-offchain/std",
+	"sp-session/std",
+	"sp-block-builder/std",
+	"sp-transaction-pool/std",
+	"sp-inherents/std",
+	"frame-support/std",
+	"frame-executive/std",
+	"frame-system/std",
+	"frame-system-rpc-runtime-api/std",
+	"pallet-balances/std",
+	"pallet-randomness-collective-flip/std",
+	"pallet-timestamp/std",
+	"pallet-sudo/std",
+	"pallet-transaction-payment/std",
+	"parachain-info/std",
+	"cumulus-pallet-parachain-system/std",
+	"cumulus-primitives-core/std",
+	"xcm/std",
+	"xcm-builder/std",
+	"xcm-executor/std",
+	"cumulus-pallet-xcm/std",
+	"cumulus-pallet-xcmp-queue/std",
+	"cumulus-primitives-utility/std",
+    "couple/std",
+	"proposals-info-runtime-api/std",
+	"proposals/std",
+	"tokens/std",
+	"traits/std"
 ]

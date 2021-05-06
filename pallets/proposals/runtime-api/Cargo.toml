@@ -9,9 +9,9 @@ description = "FRAME pallet template for defining custom runtime logic."
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
-sp-api = { version = '3.0.0', default-features = false}
-sp-std = { version = '3.0.0', default-features = false}
-sp-runtime = { version = '3.0.0', default-features = false}
+sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = '3.0.0', default-features = false}
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = '3.0.0', default-features = false}
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "rococo-v1", version = '3.0.0', default-features = false}
 xpmrl-traits = { version = "0.1.0", default-features = false, path = "../../traits" }
 serde = { version = "1.0.101" }
 
