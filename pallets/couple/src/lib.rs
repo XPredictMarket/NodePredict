@@ -635,17 +635,17 @@ impl<T: Config> Pallet<T> {
             let decimals = T::Tokens::decimals(currency_id)?;
             let asset_id_1 = T::Tokens::new_asset(
                 optional[0].clone(),
-                runtime_format!("{:?}-yes", proposal_id),
+                runtime_format!("{:?}-YES", proposal_id),
                 decimals,
             )?;
             let asset_id_2 = T::Tokens::new_asset(
                 optional[1].clone(),
-                runtime_format!("{:?}-no", proposal_id),
+                runtime_format!("{:?}-NO", proposal_id),
                 decimals,
             )?;
             let asset_id_lp = T::Tokens::new_asset(
-                runtime_format!("{:?}-lp", proposal_id),
-                runtime_format!("{:?}-lp", proposal_id),
+                runtime_format!("LP-{:?}", proposal_id),
+                runtime_format!("LP-{:?}", proposal_id),
                 decimals,
             )?;
 
