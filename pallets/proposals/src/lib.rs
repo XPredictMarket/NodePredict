@@ -240,7 +240,7 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    pub fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
+    fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
         let now = T::Time::now();
         let expiration_time = ProposalAutomaticExpirationTime::<T>::get().unwrap_or(Zero::zero());
         let max_id = CurrentProposalId::<T>::get().unwrap_or(Zero::zero());
@@ -283,7 +283,7 @@ impl<T: Config> Pallet<T> {
         })
     }
 
-    pub fn get_next_proposal_id() -> Result<T::ProposalId, DispatchError> {
+    fn get_next_proposal_id() -> Result<T::ProposalId, DispatchError> {
         CurrentProposalId::<T>::try_mutate(|value| -> Result<T::ProposalId, DispatchError> {
             let current_id = value.unwrap_or(Zero::zero());
             *value = Some(
@@ -295,7 +295,7 @@ impl<T: Config> Pallet<T> {
         })
     }
 
-    pub fn inner_new_proposal_v1(
+    fn inner_new_proposal_v1(
         who: &T::AccountId,
         title: Vec<u8>,
         close_time: MomentOf<T>,

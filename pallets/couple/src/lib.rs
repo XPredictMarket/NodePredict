@@ -525,7 +525,7 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    pub fn get_other_optional_id(
+    fn get_other_optional_id(
         proposal_id: T::ProposalId,
         optional_currency_id: CurrencyIdOf<T>,
     ) -> Result<(usize, CurrencyIdOf<T>), DispatchError> {
@@ -539,7 +539,7 @@ impl<T: Config> Pallet<T> {
         Ok(other_currency_id)
     }
 
-    pub fn get_fee_of_liquid(
+    fn get_fee_of_liquid(
         proposal_id: ProposalIdOf<T>,
         number: BalanceOf<T>,
         total_liquid: BalanceOf<T>,
@@ -566,7 +566,7 @@ impl<T: Config> Pallet<T> {
         Ok(fee)
     }
 
-    pub fn get_fee_of_creator(
+    fn get_fee_of_creator(
         who: &T::AccountId,
         proposal_id: ProposalIdOf<T>,
     ) -> Result<BalanceOf<T>, DispatchError> {
@@ -608,7 +608,7 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub fn init_pool(
+    fn init_pool(
         who: &T::AccountId,
         proposal_id: T::ProposalId,
         title: Vec<u8>,

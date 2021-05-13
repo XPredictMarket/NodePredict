@@ -44,6 +44,7 @@ hex-literal = { version = "0.3.1", optional = true }
 
 proposals = { version = "0.1.0", default-features = false, path = "../pallets/proposals", package = "xpmrl-proposals" }
 couple = { version = "0.1.0", default-features = false, path = "../pallets/couple", package = "xpmrl-couple" }
+cross = { version = "0.1.0", default-features = false, path = "../pallets/cross", package = "xpmrl-cross" }
 proposals-info-runtime-api = { version = "0.1.0", path = "../pallets/proposals/runtime-api", default-features = false }
 tokens = { version = "0.1.0", default-features = false, path = "../pallets/tokens", package = "xpmrl-tokens" }
 traits = { version = "0.1.0", default-features = false, path = "../pallets/traits", package = "xpmrl-traits" }
@@ -84,6 +85,7 @@ std = [
 	"proposals/std",
 	"tokens/std",
 	"traits/std",
+	"cross/std",
 ]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",

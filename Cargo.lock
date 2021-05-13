@@ -4417,6 +4417,7 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder",
  "xpmrl-couple",
+ "xpmrl-cross",
  "xpmrl-proposals",
  "xpmrl-tokens",
  "xpmrl-traits",
@@ -8475,6 +8476,23 @@ dependencies = [
  "sp-std",
  "xpmrl-proposals",
  "xpmrl-tokens",
+ "xpmrl-traits",
+ "xpmrl-utils",
+]
+
+[[package]]
+name = "xpmrl-cross"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-balances",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xpmrl-traits",
  "xpmrl-utils",
 ]
