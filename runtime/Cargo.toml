@@ -56,6 +56,7 @@ pallet-xcm = { git = "https://github.com/paritytech/polkadot", branch = "rococo-
 
 proposals = { version = "0.1.0", default-features = false, path = "../pallets/proposals", package = "xpmrl-proposals" }
 couple = { version = "0.1.0", default-features = false, path = "../pallets/couple", package = "xpmrl-couple" }
+cross = { version = "0.1.0", default-features = false, path = "../pallets/cross", package = "xpmrl-cross" }
 proposals-info-runtime-api = { version = "0.1.0", default-features = false, path = "../pallets/proposals/runtime-api" }
 tokens = { version = "0.1.0", default-features = false, path = "../pallets/tokens", package = "xpmrl-tokens" }
 traits = { version = "0.1.0", default-features = false, path = "../pallets/traits", package = "xpmrl-traits" }

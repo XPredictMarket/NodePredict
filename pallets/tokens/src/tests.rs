@@ -62,7 +62,7 @@ fn test_mint() {
             .iter()
             .any(|record| record.event == mint_event));
         assert_eq!(TokensModule::total_supply(1), Some(100));
-        assert_eq!(TokensModule::balance_of(1, 1), Some(100));
+        assert_eq!(TokensModule::free_balance_of(1, 1), Some(100));
 
         assert_ok!(TokensModule::mint(Origin::root(), 1, 2, 100));
         let mint_event = Event::tokens(crate::Event::Mint(1, 2, 100));
@@ -70,7 +70,7 @@ fn test_mint() {
             .iter()
             .any(|record| record.event == mint_event));
         assert_eq!(TokensModule::total_supply(1), Some(200));
-        assert_eq!(TokensModule::balance_of(2, 1), Some(100));
+        assert_eq!(TokensModule::free_balance_of(2, 1), Some(100));
     });
 }
 
@@ -104,7 +104,7 @@ fn test_burn() {
             .iter()
             .any(|record| record.event == burn_event));
         assert_eq!(TokensModule::total_supply(1), Some(0));
-        assert_eq!(TokensModule::balance_of(1, 1), Some(0));
+        assert_eq!(TokensModule::free_balance_of(1, 1), Some(0));
 
         assert_ok!(TokensModule::burn(Origin::signed(1), 1, 100));
         let burn_event = Event::tokens(crate::Event::Burn(1, 1, 0));
@@ -218,7 +218,7 @@ fn test_burn_from() {
             .iter()
             .any(|record| record.event == approval_event));
         assert_eq!(TokensModule::total_supply(1), Some(100));
-        assert_eq!(TokensModule::balance_of(1, 1), Some(100));
+        assert_eq!(TokensModule::free_balance_of(1, 1), Some(100));
     });
 }
 

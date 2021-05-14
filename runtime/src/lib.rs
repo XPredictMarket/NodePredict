@@ -42,8 +42,7 @@ pub use frame_support::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
         DispatchClass, IdentityFee, Weight,
     },
-    StorageValue,
-    PalletId,
+    PalletId, StorageValue,
 };
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
@@ -53,6 +52,7 @@ pub use sp_runtime::{Perbill, Permill, Perquintill};
 
 pub use couple;
 pub use couple::pallet::Proposal;
+use cross;
 pub use proposals;
 use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
 pub use tokens;
@@ -462,6 +462,15 @@ impl tokens::Config for Runtime {
     type ModuleId = TokensModuleId;
 }
 
+type ChainId = u32;
+
+impl cross::Config for Runtime {
+    type Event = Event;
+    type Tokens = Tokens;
+    type Time = Timestamp;
+    type ChainId = ChainId;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
     pub enum Runtime where
@@ -483,6 +492,7 @@ construct_runtime!(
 
         Proposals: proposals::{Pallet, Call, Config, Storage, Event<T>},
         Couple: couple::{Pallet, Call, Storage, Event<T>},
+        Cross: cross::{Pallet, Call, Storage, Event<T>},
         Tokens: tokens::{Pallet, Call, Config<T>, Storage, Event<T>},
     }
 );
@@ -661,7 +671,7 @@ impl_runtime_apis! {
             let fee = Couple::proposal_total_market_fee(proposal_id).unwrap_or(Default::default());
             let total = Couple::proposal_total_market(proposal_id).unwrap_or(Default::default());
             let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or(Default::default());
-            let balance = Tokens::balance_of(account_id, currency_id).unwrap_or(Default::default());
+            let balance = Tokens::free_balance_of(account_id, currency_id).unwrap_or(Default::default());
             let close_time = Couple::proposal_close_time(proposal_id).unwrap_or(Default::default());
             let status = Proposals::proposal_status(proposal_id).unwrap_or(ProposalStatus::OriginalPrediction);
 

@@ -110,7 +110,7 @@ async fn start_node_impl<RB>(
     polkadot_config: Configuration,
     id: ParaId,
     validator: bool,
-    rpc_ext_builder: RB,
+    _rpc_ext_builder: RB,
 ) -> sc_service::error::Result<(TaskManager, Arc<TFullClient<Block, RuntimeApi, Executor>>)>
 where
     RB: Fn(
@@ -166,6 +166,21 @@ where
             block_announce_validator_builder: Some(Box::new(|_| block_announce_validator)),
         })?;
 
+    let rpc_extensions_builder = {
+        let client = client.clone();
+        let transaction_pool = transaction_pool.clone();
+
+        Box::new(move |deny_unsafe, _| {
+            let deps = crate::rpc::FullDeps {
+                client: client.clone(),
+                pool: transaction_pool.clone(),
+                deny_unsafe,
+            };
+
+            crate::rpc::create_full(deps)
+        })
+    };
+
     if parachain_config.offchain_worker.enabled {
         sc_service::build_offchain_workers(
             &parachain_config,
@@ -174,9 +189,6 @@ where
             network.clone(),
         );
     }
-
-    let rpc_client = client.clone();
-    let rpc_extensions_builder = Box::new(move |_, _| rpc_ext_builder(rpc_client.clone()));
 
     sc_service::spawn_tasks(sc_service::SpawnTasksParams {
         on_demand: None,

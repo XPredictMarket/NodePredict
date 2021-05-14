@@ -3,6 +3,7 @@ use predict_rococo_runtime::{AccountId, Signature};
 use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
 use sc_service::ChainType;
 use serde::{Deserialize, Serialize};
+use serde_json::{map::Map, value::Value};
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
 
@@ -15,6 +16,13 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
     TPublic::Pair::from_string(&format!("//{}", seed), None)
         .expect("static values are valid; qed")
         .public()
+}
+
+pub fn properties() -> Option<Map<String, Value>> {
+    let mut properties = Map::new();
+    properties.insert("tokenSymbol".into(), vec!["PGAS"].into());
+    properties.insert("tokenDecimals".into(), vec![12].into());
+    Some(properties)
 }
 
 /// The extensions for the [`ChainSpec`].
@@ -68,7 +76,7 @@ pub fn development_config(id: ParaId) -> ChainSpec {
         vec![],
         None,
         None,
-        None,
+        properties(),
         Extensions {
             relay_chain: "rococo-dev".into(),
             para_id: id.into(),
@@ -108,7 +116,7 @@ pub fn local_testnet_config(id: ParaId) -> ChainSpec {
         vec![],
         None,
         None,
-        None,
+        properties(),
         Extensions {
             relay_chain: "rococo-local".into(),
             para_id: id.into(),

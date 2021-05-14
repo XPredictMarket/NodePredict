@@ -92,7 +92,7 @@ fn test_add_liquidity() {
             Some(number + next_number)
         );
         assert_eq!(CoupleModule::proposal_account_info(0, 2), Some(next_number));
-        assert_eq!(XPMRLTokens::balance_of(2, 5), Some(next_number));
+        assert_eq!(XPMRLTokens::free_balance_of(2, 5), Some(next_number));
     });
 }
 
@@ -127,9 +127,9 @@ fn test_remove_liquidity() {
             .iter()
             .any(|record| record.event == remove_liquidity_event));
 
-        assert_eq!(XPMRLTokens::balance_of(1, 1), Some(86250));
-        assert_eq!(XPMRLTokens::balance_of(1, 4), Some(45000));
-        assert_eq!(XPMRLTokens::balance_of(2, 3), Some(45000));
+        assert_eq!(XPMRLTokens::free_balance_of(1, 1), Some(86250));
+        assert_eq!(XPMRLTokens::free_balance_of(1, 4), Some(45000));
+        assert_eq!(XPMRLTokens::free_balance_of(2, 3), Some(45000));
     });
 }
 
@@ -161,7 +161,7 @@ fn test_buy() {
             .iter()
             .any(|record| record.event == buy_event));
 
-        assert_eq!(XPMRLTokens::balance_of(2, 3), Some(45000));
+        assert_eq!(XPMRLTokens::free_balance_of(2, 3), Some(45000));
         assert_eq!(
             CoupleModule::proposal_total_optional_market(0),
             Some((80000, 125000))
@@ -200,7 +200,7 @@ fn test_sell() {
             .iter()
             .any(|record| record.event == sell_event));
 
-        assert_eq!(XPMRLTokens::balance_of(2, 3), Some(0));
+        assert_eq!(XPMRLTokens::free_balance_of(2, 3), Some(0));
         assert_eq!(
             CoupleModule::proposal_total_optional_market(0),
             Some((number, number))
@@ -256,8 +256,8 @@ fn test_retrieval() {
             .iter()
             .any(|record| record.event == retrieval_event));
 
-        assert_eq!(XPMRLTokens::balance_of(1, 1), Some(86250));
-        assert_eq!(XPMRLTokens::balance_of(2, 1), Some(45000));
+        assert_eq!(XPMRLTokens::free_balance_of(1, 1), Some(86250));
+        assert_eq!(XPMRLTokens::free_balance_of(2, 1), Some(45000));
         assert_eq!(CoupleModule::proposal_total_market(0), Some(0));
     });
 }
