@@ -43,11 +43,11 @@ pub use sp_runtime::{Perbill, Permill};
 
 pub use couple;
 pub use couple::pallet::Proposal;
+use cross;
 /// Import the template pallet.
 pub use proposals;
 use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
 pub use tokens;
-use cross;
 use traits::ProposalStatus;
 
 /// An index to a block.
