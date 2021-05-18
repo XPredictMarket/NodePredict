@@ -336,7 +336,7 @@ construct_runtime!(
         // Include the custom logic from the template pallet in the runtime.
         Proposals: proposals::{Module, Call, Config, Storage, Event<T>},
         Couple: couple::{Module, Call, Storage, Event<T>},
-        Cross: cross::{Module, Call, Storage, Event<T>},
+        Cross: cross::{Module, Call, Config<T>, Storage, Event<T>},
         Tokens: tokens::{Module, Call, Config<T>, Storage, Event<T>},
     }
 );

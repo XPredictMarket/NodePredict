@@ -7,6 +7,9 @@ use sp_runtime::{
     DispatchError,
 };
 
+#[cfg(feature = "std")]
+use frame_support::traits::GenesisBuild;
+
 #[frame_support::pallet]
 pub mod pallet {
     use codec::FullCodec;
@@ -66,6 +69,10 @@ pub mod pallet {
     pub type BurnAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
     #[pallet::storage]
+    #[pallet::getter(fn pending_burn_account)]
+    pub type PendingBurnAccount<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
+
+    #[pallet::storage]
     #[pallet::getter(fn allowance_reserve)]
     pub type Allowance<T: Config> = StorageDoubleMap<
         _,
@@ -76,6 +83,27 @@ pub mod pallet {
         BTreeMap<T::AccountId, BalanceOf<T>>, // map (spender, number)
         OptionQuery,
     >;
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        pub burn_address: T::AccountId,
+    }
+
+    #[cfg(feature = "std")]
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                burn_address: Default::default(),
+            }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+        fn build(&self) {
+            BurnAccount::<T>::set(Some(self.burn_address.clone()));
+        }
+    }
 
     #[pallet::event]
     #[pallet::metadata(T::AccountId = "AccountId")]
@@ -96,6 +124,8 @@ pub mod pallet {
             MomentOf<T>,
             BalanceOf<T>,
         ),
+        PendingBurnAddress(T::AccountId, T::AccountId),
+        AcceptBurnAddress(T::AccountId),
     }
 
     #[pallet::error]
@@ -106,6 +136,9 @@ pub mod pallet {
         ApproveSelf,
         BalanceOverflow,
         OriginNotAllowed,
+        MustSetPendingBurnAddress,
+        MustCallFromPendingAddress,
+        NotTransferSelf,
     }
 
     #[pallet::hooks]
@@ -167,13 +200,27 @@ pub mod pallet {
         }
 
         #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1, 1))]
-        pub fn set_burn_address(
+        pub fn transfer_burn_address(
             origin: OriginFor<T>,
             address: T::AccountId,
         ) -> DispatchResultWithPostInfo {
-            let _ = ensure_root(origin)?;
-            BurnAccount::<T>::set(Some(address.clone()));
-            Self::deposit_event(Event::NewBurnAddress(address));
+            let who = ensure_signed(origin)?;
+            ensure!(who != address, Error::<T>::NotTransferSelf);
+            let burn_address = BurnAccount::<T>::get().ok_or(Error::<T>::MustSetBurnAddress)?;
+            ensure!(who == burn_address, Error::<T>::MustCallFromBurnAddress);
+            PendingBurnAccount::<T>::set(Some(address.clone()));
+            Self::deposit_event(Event::PendingBurnAddress(who, address));
+            Ok(().into())
+        }
+
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn accept_burn_address(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let burn_address =
+                PendingBurnAccount::<T>::get().ok_or(Error::<T>::MustSetPendingBurnAddress)?;
+            ensure!(who == burn_address, Error::<T>::MustCallFromPendingAddress);
+            BurnAccount::<T>::set(Some(who.clone()));
+            Self::deposit_event(Event::AcceptBurnAddress(who));
             Ok(().into())
         }
 
@@ -184,6 +231,7 @@ pub mod pallet {
             chain_id: T::ChainId,
             address: T::AccountId,
             time: MomentOf<T>,
+            fee: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
             let burn_address = BurnAccount::<T>::get().ok_or(Error::<T>::MustSetBurnAddress)?;
@@ -195,6 +243,7 @@ pub mod pallet {
             with_transaction_result(|| {
                 Self::update_info(&who, &address, currency_id, old.number, time)?;
                 T::Tokens::unreserve(currency_id, &address, old.number)?;
+                T::Tokens::transfer(currency_id, &address, &who, fee)?;
                 Ok(())
             })?;
             Self::deposit_event(Event::UnReserved(
@@ -229,6 +278,17 @@ pub mod pallet {
             })?;
             Ok(().into())
         }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T: Config> GenesisConfig<T> {
+    pub fn build_storage(&self) -> Result<sp_runtime::Storage, String> {
+        <Self as GenesisBuild<T>>::build_storage(self)
+    }
+
+    pub fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
+        <Self as GenesisBuild<T>>::assimilate_storage(self, storage)
     }
 }
 

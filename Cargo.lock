@@ -8516,6 +8516,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "xpmrl-stake"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "xpmrl-tokens"
 version = "0.1.0"
 dependencies = [

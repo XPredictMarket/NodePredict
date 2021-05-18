@@ -1,7 +1,7 @@
 use hex_literal::hex;
 use predict_runtime::{
-    AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, ProposalsConfig,
-    SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
+    AccountId, AuraConfig, BalancesConfig, CrossConfig, GenesisConfig, GrandpaConfig,
+    ProposalsConfig, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
 use serde_json::{map::Map, value::Value};
@@ -84,6 +84,7 @@ pub fn mainnet_test_config() -> Result<ChainSpec, String> {
                         100000000000000000000000000,
                     ),
                 ],
+                get_account_id_from_address("5DaHUFrae1XU8uzbX9anPPvDPBjXgux6NHdGQFhKgiyMa31G"),
             )
         },
         // Bootnodes
@@ -135,6 +136,7 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                 true,
                 vec![],
                 vec![],
+                get_account_id_from_address("5DaHUFrae1XU8uzbX9anPPvDPBjXgux6NHdGQFhKgiyMa31G"),
             )
         },
         // Bootnodes
@@ -159,6 +161,7 @@ fn predict_genesis(
     _enable_println: bool,
     tokens: Vec<(&str, &str, u8)>,
     balances: Vec<(AccountId, u128)>,
+    burn_address: AccountId,
 ) -> GenesisConfig {
     GenesisConfig {
         frame_system: Some(SystemConfig {
@@ -200,6 +203,7 @@ fn predict_genesis(
                 .collect(),
             balances,
         }),
+        cross: Some(CrossConfig { burn_address }),
         proposals: Some(ProposalsConfig {
             expiration_time: 3 * 24 * 60 * 60 * 1000,
             liquidity_provider_fee_rate: 9000,
