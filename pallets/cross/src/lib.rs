@@ -15,8 +15,8 @@ pub mod pallet {
     use codec::FullCodec;
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
     use frame_system::pallet_prelude::*;
-    use sp_runtime::traits::{AtLeast32BitUnsigned, CheckedAdd};
-    use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, vec::Vec};
+    use sp_runtime::traits::{AtLeast32BitUnsigned, CheckedAdd, Zero};
+    use sp_std::{fmt::Debug, vec::Vec};
     use xpmrl_traits::tokens::Tokens;
     use xpmrl_utils::with_transaction_result;
 
@@ -77,10 +77,10 @@ pub mod pallet {
     pub type Allowance<T: Config> = StorageDoubleMap<
         _,
         Blake2_128Concat,
-        T::AccountId,                         // owner
-        Twox64Concat,                         // hasher
-        CurrencyIdOf<T>,                      // currency id
-        BTreeMap<T::AccountId, BalanceOf<T>>, // map (spender, number)
+        T::AccountId,    // owner
+        Twox64Concat,    // hasher
+        CurrencyIdOf<T>, // currency id
+        BalanceOf<T>,    // map (spender, number)
         OptionQuery,
     >;
 
@@ -164,16 +164,11 @@ pub mod pallet {
                     who.clone(),
                     currency_id,
                     |items| -> Result<BalanceOf<T>, DispatchError> {
-                        let mut new_items = items.clone().unwrap_or(BTreeMap::new());
-                        let number = {
-                            if let Some(x) = new_items.get(&burn_address) {
-                                x.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?
-                            } else {
-                                number
-                            }
-                        };
-                        new_items.insert(burn_address.clone(), number);
-                        *items = Some(new_items);
+                        let old_value = items.unwrap_or(Zero::zero());
+                        let new_value = old_value
+                            .checked_add(&number)
+                            .ok_or(Error::<T>::BalanceOverflow)?;
+                        *items = Some(new_value);
                         Ok(number)
                     },
                 )?;
@@ -304,15 +299,13 @@ impl<T: Config> Pallet<T> {
             &who,
             currency_id,
             |item| -> Result<(), DispatchError> {
-                let mut alloweds = item.clone().ok_or(Error::<T>::OriginNotAllowed)?;
-                let allow = *(alloweds.get(&who).ok_or(Error::<T>::OriginNotAllowed)?);
+                let allow = item.ok_or(Error::<T>::OriginNotAllowed)?;
                 ensure!(allow >= number, Error::<T>::OriginNotAllowed);
                 let result_number = allow.checked_sub(&number).unwrap_or(Zero::zero());
                 *item = if result_number == Zero::zero() {
                     None
                 } else {
-                    alloweds.insert(who.clone(), result_number);
-                    Some(alloweds)
+                    Some(result_number)
                 };
                 Ok(())
             },

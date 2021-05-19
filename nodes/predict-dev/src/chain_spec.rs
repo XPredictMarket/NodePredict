@@ -112,7 +112,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
                         100000000000000000000000000,
                     ),
                 ],
-                get_account_id_from_address("5DaHUFrae1XU8uzbX9anPPvDPBjXgux6NHdGQFhKgiyMa31G"),
+                get_account_id_from_address("5HGTTu6qeU4oNmKepkqHNJjM56Mfh837SyYzG7CSugE4U7f5"),
             )
         },
         // Bootnodes
@@ -199,7 +199,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                         100000000000000000000000000,
                     ),
                 ],
-                get_account_id_from_address("5DaHUFrae1XU8uzbX9anPPvDPBjXgux6NHdGQFhKgiyMa31G"),
+                get_account_id_from_address("5HGTTu6qeU4oNmKepkqHNJjM56Mfh837SyYzG7CSugE4U7f5"),
             )
         },
         // Bootnodes
