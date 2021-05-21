@@ -68,7 +68,7 @@ where
 	)));
 
 	io.extend_with(proposals_info_rpc::CoupleInfoApi::to_delegate(
-		proposals_info_rpc::CoupleInfo::new(client.clone()),
+		proposals_info_rpc::CoupleInfo::new(client),
 	));
 
 	// Extend this RPC with a custom API by using the following syntax.

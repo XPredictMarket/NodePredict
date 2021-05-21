@@ -1,8 +1,8 @@
 use codec::Codec;
-use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
-pub use proposals_info_runtime_api::CoupleInfoApi as CoupleInfoRuntimeApi;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
+use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
+pub use proposals_info_runtime_api::CoupleInfoApi as CoupleInfoRuntimeApi;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{
@@ -122,7 +122,7 @@ where
 			self.client.info().best_hash));
 
 		let runtime_api_result =
-			api.get_personal_proposal_info(&at, version_id, proposal_id, account_id.clone());
+			api.get_personal_proposal_info(&at, version_id, proposal_id, account_id);
 		runtime_api_result.map_err(|e| RpcError {
 			code: ErrorCode::ServerError(9876), // No real reason for this value
 			message: "Something wrong".into(),

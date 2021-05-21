@@ -41,9 +41,9 @@ macro_rules! storage_try_mutate {
 macro_rules! sub_abs {
     ($number_1: ident, $number_2: ident) => {
         if $number_1 < $number_2 {
-            $number_2.checked_sub(&$number_1).unwrap_or(Zero::zero())
+            $number_2.checked_sub(&$number_1).unwrap_or_else(Zero::zero)
         } else {
-            $number_1.checked_sub(&$number_2).unwrap_or(Zero::zero())
+            $number_1.checked_sub(&$number_2).unwrap_or_else(Zero::zero)
         }
     };
 }

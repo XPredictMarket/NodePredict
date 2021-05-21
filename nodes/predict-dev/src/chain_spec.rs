@@ -239,8 +239,8 @@ fn testnet_genesis(
 				.iter()
 				.map(|x| {
 					(
-						x.0.clone().as_bytes().to_vec(),
-						x.1.clone().as_bytes().to_vec(),
+						<&str>::clone(&x.0).as_bytes().to_vec(),
+						<&str>::clone(&x.1).as_bytes().to_vec(),
 						x.2,
 					)
 				})

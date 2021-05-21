@@ -223,10 +223,7 @@ fn balance_deserialize_from_string<'de, D: Deserializer<'de>, T: std::str::FromS
 }
 
 #[cfg(feature = "std")]
-fn vec_u8_serialize_as_string<S: Serializer>(
-    t: &Vec<u8>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
+fn vec_u8_serialize_as_string<S: Serializer>(t: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
     let s =
         str::from_utf8(&t).map_err(|_| serde::ser::Error::custom("cannot convert to string"))?;
     serializer.serialize_str(s)
