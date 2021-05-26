@@ -540,7 +540,7 @@ impl_runtime_apis! {
 			let fee = Couple::proposal_total_market_fee(proposal_id).unwrap_or_default();
 			let total = Couple::proposal_total_market(proposal_id).unwrap_or_default();
 			let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or_default();
-			let balance = Tokens::balance_of(account_id, currency_id).unwrap_or_default();
+			let balance = Tokens::free_balance_of(account_id, currency_id).unwrap_or_default();
 			let close_time = Couple::proposal_close_time(proposal_id).unwrap_or_default();
 			let status = Proposals::proposal_status(proposal_id).unwrap_or(ProposalStatus::OriginalPrediction);
 
