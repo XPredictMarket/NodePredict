@@ -164,7 +164,7 @@ pub mod pallet {
                     who.clone(),
                     currency_id,
                     |items| -> Result<BalanceOf<T>, DispatchError> {
-                        let old_value = items.unwrap_or(Zero::zero());
+                        let old_value = items.unwrap_or_else(Zero::zero);
                         let new_value = old_value
                             .checked_add(&number)
                             .ok_or(Error::<T>::BalanceOverflow)?;
@@ -301,7 +301,7 @@ impl<T: Config> Pallet<T> {
             |item| -> Result<(), DispatchError> {
                 let allow = item.ok_or(Error::<T>::OriginNotAllowed)?;
                 ensure!(allow >= number, Error::<T>::OriginNotAllowed);
-                let result_number = allow.checked_sub(&number).unwrap_or(Zero::zero());
+                let result_number = allow.checked_sub(&number).unwrap_or_else(Zero::zero);
                 *item = if result_number == Zero::zero() {
                     None
                 } else {

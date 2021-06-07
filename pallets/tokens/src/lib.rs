@@ -15,7 +15,7 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement, ReservableCurrency},
 };
 use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedSub, One, Zero};
-use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
+use sp_std::vec::Vec;
 use xpmrl_traits::tokens::Tokens;
 
 #[cfg(feature = "std")]
@@ -105,7 +105,7 @@ pub mod pallet {
                 }
                 Ok(())
             };
-            if let Err(_) = f() {}
+            if f().is_err() {}
         }
     }
 
@@ -193,7 +193,7 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(2, 2))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 2))]
         pub fn new_asset(
             origin: OriginFor<T>,
             name: Vec<u8>,
@@ -206,7 +206,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(2, 1))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn mint(
             origin: OriginFor<T>,
             currency_id: T::CurrencyId,
@@ -220,7 +220,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(2, 1))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn burn(
             origin: OriginFor<T>,
             currency_id: T::CurrencyId,
@@ -233,7 +233,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(6, 2))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(6, 2))]
         pub fn burn_from(
             origin: OriginFor<T>,
             currency_id: T::CurrencyId,
@@ -252,7 +252,7 @@ pub mod pallet {
                     currency_id,
                     &from,
                     &who,
-                    allow.checked_sub(&number).unwrap_or(Zero::zero()),
+                    allow.checked_sub(&number).unwrap_or_else(Zero::zero),
                 )?;
                 Ok(actual_number)
             })?;
@@ -260,7 +260,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(4, 2))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(4, 2))]
         pub fn transfer(
             origin: OriginFor<T>,
             currency_id: T::CurrencyId,
@@ -276,7 +276,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(7, 3))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(7, 3))]
         pub fn transfer_from(
             origin: OriginFor<T>,
             currency_id: T::CurrencyId,
@@ -297,7 +297,7 @@ pub mod pallet {
                     currency_id,
                     &from,
                     &who,
-                    allow.checked_sub(&number).unwrap_or(Zero::zero()),
+                    allow.checked_sub(&number).unwrap_or_else(Zero::zero),
                 )?;
                 Ok(actual_number)
             })?;
@@ -311,7 +311,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(2, 1))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn approve(
             origin: OriginFor<T>,
             currency_id: T::CurrencyId,
@@ -326,7 +326,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(2, 1))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn add_approve(
             origin: OriginFor<T>,
             currency_id: T::CurrencyId,
@@ -357,7 +357,7 @@ impl<T: Config> GenesisConfig<T> {
 impl<T: Config> Pallet<T> {
     fn get_next_currency_id() -> Result<T::CurrencyId, DispatchError> {
         CurrentCurrencyId::<T>::try_mutate(|value| -> Result<T::CurrencyId, DispatchError> {
-            let mut currency_id = value.unwrap_or(Zero::zero());
+            let mut currency_id = value.unwrap_or_else(Zero::zero);
             if currency_id == T::NativeCurrencyId::get() {
                 currency_id = currency_id
                     .checked_add(&One::one())
@@ -420,25 +420,25 @@ impl<T: Config> Pallet<T> {
                 &to,
                 currency_id,
                 |balance| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_balance = balance.unwrap_or(Zero::zero());
+                    let old_balance = balance.unwrap_or_else(Zero::zero);
                     let new_balance = old_balance
                         .checked_add(&number)
                         .ok_or(Error::<T>::BalanceOverflow)?;
                     *balance = Some(new_balance);
                     Ok(new_balance
                         .checked_sub(&old_balance)
-                        .unwrap_or(Zero::zero()))
+                        .unwrap_or_else(Zero::zero))
                 },
             )?;
             let _ = TotalSupply::<T>::try_mutate(
                 currency_id,
                 |total_supply| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_total = total_supply.unwrap_or(Zero::zero());
+                    let old_total = total_supply.unwrap_or_else(Zero::zero);
                     let new_total = old_total
                         .checked_add(&actual_number)
                         .ok_or(Error::<T>::BalanceOverflow)?;
                     *total_supply = Some(new_total);
-                    Ok(new_total.checked_sub(&old_total).unwrap_or(Zero::zero()))
+                    Ok(new_total.checked_sub(&old_total).unwrap_or_else(Zero::zero))
                 },
             )?;
             Ok(actual_number)
@@ -453,7 +453,7 @@ impl<T: Config> Pallet<T> {
         Self::ensure_currency_id(currency_id)?;
         if currency_id == T::NativeCurrencyId::get() {
             let old_balance = T::Currency::free_balance(&from);
-            let new_balance = old_balance.checked_sub(&number).unwrap_or(Zero::zero());
+            let new_balance = old_balance.checked_sub(&number).unwrap_or_else(Zero::zero);
             T::Currency::make_free_balance_be(&from, new_balance);
             Ok(number)
         } else {
@@ -461,12 +461,12 @@ impl<T: Config> Pallet<T> {
                 &from,
                 currency_id,
                 |balance| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_balance = balance.unwrap_or(Zero::zero());
-                    let new_balance = old_balance.checked_sub(&number).unwrap_or(Zero::zero());
+                    let old_balance = balance.unwrap_or_else(Zero::zero);
+                    let new_balance = old_balance.checked_sub(&number).unwrap_or_else(Zero::zero);
                     *balance = Some(new_balance);
                     Ok(old_balance
                         .checked_sub(&new_balance)
-                        .unwrap_or(Zero::zero()))
+                        .unwrap_or_else(Zero::zero))
                 },
             )?;
             let _ = TotalSupply::<T>::try_mutate(
@@ -475,9 +475,9 @@ impl<T: Config> Pallet<T> {
                     let old_total = total_supply.ok_or(Error::<T>::CurrencyIdNotExist)?;
                     let new_total = old_total
                         .checked_sub(&actual_number)
-                        .unwrap_or(Zero::zero());
+                        .unwrap_or_else(Zero::zero);
                     *total_supply = Some(new_total);
-                    Ok(old_total.checked_sub(&new_total).unwrap_or(Zero::zero()))
+                    Ok(old_total.checked_sub(&new_total).unwrap_or_else(Zero::zero))
                 },
             )?;
             Ok(actual_number)
@@ -500,15 +500,15 @@ impl<T: Config> Pallet<T> {
             Ok(number)
         } else {
             ensure!(
-                FreeBalanceOf::<T>::get(&from, currency_id).unwrap_or(Zero::zero()) >= number,
+                FreeBalanceOf::<T>::get(&from, currency_id).unwrap_or_else(Zero::zero) >= number,
                 Error::<T>::InsufficientBalance
             );
             let actual_number = FreeBalanceOf::<T>::try_mutate(
                 &from,
                 currency_id,
                 |balance| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_balance = balance.unwrap_or(Zero::zero());
-                    let new_balance = old_balance.checked_sub(&number).unwrap_or(Zero::zero());
+                    let old_balance = balance.unwrap_or_else(Zero::zero);
+                    let new_balance = old_balance.checked_sub(&number).unwrap_or_else(Zero::zero);
                     *balance = Some(new_balance);
                     Ok(old_balance - new_balance)
                 },
@@ -517,7 +517,7 @@ impl<T: Config> Pallet<T> {
                 &to,
                 currency_id,
                 |balance| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_balance = balance.unwrap_or(Zero::zero());
+                    let old_balance = balance.unwrap_or_else(Zero::zero);
                     *balance = Some(
                         old_balance
                             .checked_add(&actual_number)
@@ -541,7 +541,7 @@ impl<T: Config> Pallet<T> {
             owner,
             currency_id,
             |items| -> Result<BalanceOf<T>, DispatchError> {
-                let mut new_items = items.clone().unwrap_or(BTreeMap::new());
+                let mut new_items = items.clone().unwrap_or_default();
                 new_items.insert(spender.clone(), number);
                 *items = Some(new_items);
                 Ok(number)
@@ -561,7 +561,7 @@ impl<T: Config> Pallet<T> {
             owner,
             currency_id,
             |items| -> Result<BalanceOf<T>, DispatchError> {
-                let mut new_items = items.clone().unwrap_or(BTreeMap::new());
+                let mut new_items = items.clone().unwrap_or_default();
                 let number = {
                     if let Some(x) = new_items.get(&spender) {
                         x.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?
@@ -593,15 +593,15 @@ impl<T: Config> Pallet<T> {
                 &from,
                 currency_id,
                 |val| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_val = val.unwrap_or(Zero::zero());
+                    let old_val = val.unwrap_or_else(Zero::zero);
                     ensure!(old_val >= number, Error::<T>::InsufficientBalance);
-                    let new_val = old_val.checked_sub(&number).unwrap_or(Zero::zero());
+                    let new_val = old_val.checked_sub(&number).unwrap_or_else(Zero::zero);
                     *val = Some(new_val);
-                    Ok(old_val.checked_sub(&number).unwrap_or(Zero::zero()))
+                    Ok(old_val.checked_sub(&number).unwrap_or_else(Zero::zero))
                 },
             )?;
             ReserveOf::<T>::try_mutate(&from, currency_id, |val| -> Result<(), DispatchError> {
-                let old_val = val.unwrap_or(Zero::zero());
+                let old_val = val.unwrap_or_else(Zero::zero);
                 let new_val = old_val
                     .checked_add(&actual_number)
                     .ok_or(Error::<T>::BalanceOverflow)?;
@@ -620,10 +620,10 @@ impl<T: Config> Pallet<T> {
         Self::ensure_currency_id(currency_id)?;
         if currency_id == T::NativeCurrencyId::get() {
             let old_value = T::Currency::reserved_balance(&from);
-            let new_value = old_value.checked_sub(&number).unwrap_or(Zero::zero());
+            let new_value = old_value.checked_sub(&number).unwrap_or_else(Zero::zero);
             let (_, actual_number) = T::Currency::slash_reserved(
                 &from,
-                old_value.checked_sub(&new_value).unwrap_or(Zero::zero()),
+                old_value.checked_sub(&new_value).unwrap_or_else(Zero::zero),
             );
             Ok(actual_number)
         } else {
@@ -631,10 +631,10 @@ impl<T: Config> Pallet<T> {
                 &from,
                 currency_id,
                 |val| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_val = val.unwrap_or(Zero::zero());
-                    let new_val = old_val.checked_sub(&number).unwrap_or(Zero::zero());
+                    let old_val = val.unwrap_or_else(Zero::zero);
+                    let new_val = old_val.checked_sub(&number).unwrap_or_else(Zero::zero);
                     *val = Some(new_val);
-                    Ok(old_val.checked_sub(&new_val).unwrap_or(Zero::zero()))
+                    Ok(old_val.checked_sub(&new_val).unwrap_or_else(Zero::zero))
                 },
             )?;
             let _ = TotalSupply::<T>::try_mutate(
@@ -643,9 +643,9 @@ impl<T: Config> Pallet<T> {
                     let old_total = total_supply.ok_or(Error::<T>::CurrencyIdNotExist)?;
                     let new_total = old_total
                         .checked_sub(&actual_number)
-                        .unwrap_or(Zero::zero());
+                        .unwrap_or_else(Zero::zero);
                     *total_supply = Some(new_total);
-                    Ok(old_total.checked_sub(&new_total).unwrap_or(Zero::zero()))
+                    Ok(old_total.checked_sub(&new_total).unwrap_or_else(Zero::zero))
                 },
             )?;
             Ok(actual_number)
@@ -669,23 +669,23 @@ impl<T: Config> Pallet<T> {
                 &from,
                 currency_id,
                 |val| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_val = val.unwrap_or(Zero::zero());
+                    let old_val = val.unwrap_or_else(Zero::zero);
                     ensure!(old_val >= number, Error::<T>::InsufficientBalance);
-                    let new_val = old_val.checked_sub(&number).unwrap_or(Zero::zero());
+                    let new_val = old_val.checked_sub(&number).unwrap_or_else(Zero::zero);
                     *val = Some(new_val);
-                    Ok(old_val.checked_sub(&new_val).unwrap_or(Zero::zero()))
+                    Ok(old_val.checked_sub(&new_val).unwrap_or_else(Zero::zero))
                 },
             )?;
             actual_number = FreeBalanceOf::<T>::try_mutate(
                 &from,
                 currency_id,
                 |val| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_val = val.unwrap_or(Zero::zero());
+                    let old_val = val.unwrap_or_else(Zero::zero);
                     let new_val = old_val
                         .checked_add(&actual_number)
                         .ok_or(Error::<T>::BalanceOverflow)?;
                     *val = Some(new_val);
-                    Ok(new_val.checked_sub(&old_val).unwrap_or(Zero::zero()))
+                    Ok(new_val.checked_sub(&old_val).unwrap_or_else(Zero::zero))
                 },
             )?;
             Ok(actual_number)
@@ -696,7 +696,7 @@ impl<T: Config> Pallet<T> {
         if currency_id == T::NativeCurrencyId::get() {
             T::Currency::free_balance(&who)
         } else {
-            FreeBalanceOf::<T>::get(&who, currency_id).unwrap_or(Zero::zero())
+            FreeBalanceOf::<T>::get(&who, currency_id).unwrap_or_else(Zero::zero)
         }
     }
 }
@@ -771,7 +771,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
     }
 
     fn reserved_balance(currency_id: Self::CurrencyId, who: &T::AccountId) -> Self::Balance {
-        Self::reserve_of(&who, currency_id).unwrap_or(Zero::zero())
+        Self::reserve_of(&who, currency_id).unwrap_or_else(Zero::zero)
     }
 
     fn donate(

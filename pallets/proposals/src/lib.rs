@@ -179,7 +179,7 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(1, 1))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
         pub fn new_proposal(
             origin: OriginFor<T>,
             title: Vec<u8>,
@@ -195,7 +195,7 @@ pub mod pallet {
             ensure!(category_id != Zero::zero(), Error::<T>::CategoryIdNotZero);
             ensure!(currency_id != Zero::zero(), Error::<T>::TokenIdNotZero);
             let minimum_interval_time =
-                ProposaMinimumIntervalTime::<T>::get().unwrap_or(Zero::zero());
+                ProposaMinimumIntervalTime::<T>::get().unwrap_or_else(Zero::zero);
             ensure!(
                 close_time - T::Time::now() > minimum_interval_time,
                 Error::<T>::CloseTimeMustLargeThanNow
@@ -225,7 +225,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(0 + T::DbWeight::get().reads_writes(1, 1))]
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
         pub fn set_status(
             origin: OriginFor<T>,
             proposal_id: T::ProposalId,
@@ -242,15 +242,16 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
     fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
         let now = T::Time::now();
-        let expiration_time = ProposalAutomaticExpirationTime::<T>::get().unwrap_or(Zero::zero());
-        let max_id = CurrentProposalId::<T>::get().unwrap_or(Zero::zero());
+        let expiration_time =
+            ProposalAutomaticExpirationTime::<T>::get().unwrap_or_else(Zero::zero);
+        let max_id = CurrentProposalId::<T>::get().unwrap_or_else(Zero::zero);
         let mut index: <T as Config>::ProposalId = Zero::zero();
         loop {
             if index >= max_id {
                 break;
             }
             let (start, end) = T::LiquidityPool::time(index)?;
-            let diff = now.checked_sub(&start).unwrap_or(Zero::zero());
+            let diff = now.checked_sub(&start).unwrap_or_else(Zero::zero);
             let state = ProposalStatus::<T>::get(index).unwrap_or(Status::OriginalPrediction);
             if diff > expiration_time && state == Status::OriginalPrediction {
                 Self::set_new_status(index, Status::End)?;
@@ -285,7 +286,7 @@ impl<T: Config> Pallet<T> {
 
     fn get_next_proposal_id() -> Result<T::ProposalId, DispatchError> {
         CurrentProposalId::<T>::try_mutate(|value| -> Result<T::ProposalId, DispatchError> {
-            let current_id = value.unwrap_or(Zero::zero());
+            let current_id = value.unwrap_or_else(Zero::zero);
             *value = Some(
                 current_id
                     .checked_add(&One::one())

@@ -63,7 +63,11 @@ pub fn mainnet_test_config() -> Result<ChainSpec, String> {
                     hex!["ec548f5f534d715555648d2ca7d56a22be9c13b13f1678586bc8932189788656"].into(),
                 ],
                 true,
-                vec![("Test Coin", "TestC", 8)],
+                vec![
+                    ("X POT", "XPOT", 8),
+                    ("Test Coin", "TestC", 8),
+                    ("X Ethereum", "XETH", 18),
+                ],
                 vec![
                     (
                         get_account_id_from_address(
@@ -134,7 +138,11 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                     hex!["ec548f5f534d715555648d2ca7d56a22be9c13b13f1678586bc8932189788656"].into(),
                 ],
                 true,
-                vec![],
+                vec![
+                    ("X POT", "XPOT", 8),
+                    ("Test Coin", "TestC", 8),
+                    ("X Ethereum", "XETH", 18),
+                ],
                 vec![],
                 get_account_id_from_address("5HGTTu6qeU4oNmKepkqHNJjM56Mfh837SyYzG7CSugE4U7f5"),
             )
@@ -195,8 +203,8 @@ fn predict_genesis(
                 .iter()
                 .map(|x| {
                     (
-                        x.0.clone().as_bytes().to_vec(),
-                        x.1.clone().as_bytes().to_vec(),
+                        <&str>::clone(&x.0).as_bytes().to_vec(),
+                        <&str>::clone(&x.1).as_bytes().to_vec(),
                         x.2,
                     )
                 })
