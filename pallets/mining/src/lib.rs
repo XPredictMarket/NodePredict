@@ -66,7 +66,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn total_checkpoint)]
-    pub type TotalCheckpoint<T: Config> = StorageMap<
+    pub type ProposalCheckpoint<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
         T::ProposalId,
@@ -88,7 +88,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn account_withdrawal_info)]
-    pub type AccountClaimInfo<T: Config> = StorageDoubleMap<
+    pub type AccountClaimedBlocknumber<T: Config> = StorageDoubleMap<
         _,
         Blake2_128Concat,
         T::AccountId,
@@ -104,7 +104,16 @@ pub mod pallet {
         Stake(T::AccountId, T::ProposalId, T::BlockNumber, BalanceOf<T>),
         UnStake(T::AccountId, T::ProposalId, T::BlockNumber, BalanceOf<T>),
         Claim(T::AccountId, T::ProposalId, T::BlockNumber, BalanceOf<T>),
+        UnStakeAndClaim(
+            T::AccountId,
+            T::ProposalId,
+            T::BlockNumber,
+            BalanceOf<T>,
+            BalanceOf<T>,
+        ),
         ProposalMine(T::ProposalId, BalanceOf<T>, T::BlockNumber, T::BlockNumber),
+        Deposit(T::AccountId, BalanceOf<T>),
+        Withdrtawal(T::AccountId, BalanceOf<T>),
     }
 
     #[pallet::error]
@@ -171,7 +180,8 @@ pub mod pallet {
                 AccountCheckpoint::<T>::contains_key(&who, proposal_id),
                 Error::<T>::AccountNotStake
             );
-            with_transaction_result(|| Self::inner_claim(&who, proposal_id))?;
+            let (now, number) = with_transaction_result(|| Self::inner_claim(&who, proposal_id))?;
+            Self::deposit_event(Event::Claim(who, proposal_id, now, number));
             Ok(().into())
         }
 
@@ -180,12 +190,28 @@ pub mod pallet {
             origin: OriginFor<T>,
             proposal_id: T::ProposalId,
         ) -> DispatchResultWithPostInfo {
-            let _who = ensure_signed(origin)?;
+            let who = ensure_signed(origin)?;
             ensure!(
                 ProposalMineInfo::<T>::contains_key(proposal_id),
                 Error::<T>::ProposalNotMined
             );
-            let _now = Self::block_number();
+            let vec_account_checkpoint = AccountCheckpoint::<T>::get(&who, proposal_id)
+                .ok_or(Error::<T>::AccountNotStake)?;
+            let len = vec_account_checkpoint.len();
+            ensure!(len > 0, Error::<T>::AccountNotStake);
+            let (now, number_stake, number_claim) = with_transaction_result(|| {
+                let number = vec_account_checkpoint[len - 1].clone().number;
+                let (_, number_stake) = Self::inner_unstake(&who, proposal_id, number)?;
+                let (now, number_claim) = Self::inner_claim(&who, proposal_id)?;
+                Ok((now, number_stake, number_claim))
+            })?;
+            Self::deposit_event(Event::UnStakeAndClaim(
+                who,
+                proposal_id,
+                now,
+                number_stake,
+                number_claim,
+            ));
             Ok(().into())
         }
 
@@ -195,6 +221,7 @@ pub mod pallet {
             let currency_id = T::MineTokenCurrencyId::get();
             let module_account: T::AccountId = T::ModuleId::get().into_account();
             T::Tokens::transfer(currency_id, &who, &module_account, number)?;
+            Self::deposit_event(Event::Deposit(who, number));
             Ok(().into())
         }
 
@@ -205,6 +232,7 @@ pub mod pallet {
             let module_account: T::AccountId = T::ModuleId::get().into_account();
             let balance = T::Tokens::balance(currency_id, &module_account);
             T::Tokens::transfer(currency_id, &module_account, &to, balance)?;
+            Self::deposit_event(Event::Withdrtawal(to, balance));
             Ok(().into())
         }
 
@@ -268,7 +296,7 @@ macro_rules! account_checkpoint_try_mutate {
 macro_rules! total_checkpoint_try_mutate {
     ($proposal_id: ident, $now: ident, $vec_point: ident, $new_expr: expr) => {
         storage_try_mutate!(
-            TotalCheckpoint,
+            ProposalCheckpoint,
             T,
             $proposal_id,
             |option_vec_point| -> Result<(), DispatchError> {
@@ -364,7 +392,10 @@ impl<T: Config> Pallet<T> {
         Ok((now, finally_number))
     }
 
-    fn inner_claim(who: &T::AccountId, proposal_id: T::ProposalId) -> Result<(), DispatchError> {
+    fn inner_claim(
+        who: &T::AccountId,
+        proposal_id: T::ProposalId,
+    ) -> Result<(T::BlockNumber, BalanceOf<T>), DispatchError> {
         let currency_id = T::MineTokenCurrencyId::get();
         let module_account: T::AccountId = T::ModuleId::get().into_account();
         let now = Self::block_number();
@@ -372,12 +403,12 @@ impl<T: Config> Pallet<T> {
         let mine_info =
             ProposalMineInfo::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIsMined)?;
         let total_checkpoints =
-            TotalCheckpoint::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotMined)?;
+            ProposalCheckpoint::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotMined)?;
         let account_checkpoints =
             AccountCheckpoint::<T>::get(&who, proposal_id).ok_or(Error::<T>::AccountNotStake)?;
 
         let [start, end]: [T::BlockNumber; 2] = [
-            AccountClaimInfo::<T>::try_mutate(
+            AccountClaimedBlocknumber::<T>::try_mutate(
                 &who,
                 proposal_id,
                 |option_block| -> Result<T::BlockNumber, DispatchError> {
@@ -445,6 +476,6 @@ impl<T: Config> Pallet<T> {
 
         T::Tokens::transfer(currency_id, &module_account, &who, sum)?;
 
-        Ok(())
+        Ok((now, sum))
     }
 }
