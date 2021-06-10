@@ -583,13 +583,13 @@ impl<T: Config> Pallet<T> {
     ) -> Result<BalanceOf<T>, DispatchError> {
         if currency_id == T::NativeCurrencyId::get() {
             ensure!(
-                T::Currency::reserved_balance(&from) >= number,
+                T::Currency::free_balance(&from) >= number,
                 Error::<T>::InsufficientBalance
             );
             T::Currency::reserve(&from, number)?;
             Ok(number)
         } else {
-            let actual_number = ReserveOf::<T>::try_mutate(
+            let actual_number = FreeBalanceOf::<T>::try_mutate(
                 &from,
                 currency_id,
                 |val| -> Result<BalanceOf<T>, DispatchError> {
@@ -597,7 +597,7 @@ impl<T: Config> Pallet<T> {
                     ensure!(old_val >= number, Error::<T>::InsufficientBalance);
                     let new_val = old_val.checked_sub(&number).unwrap_or_else(Zero::zero);
                     *val = Some(new_val);
-                    Ok(old_val.checked_sub(&number).unwrap_or_else(Zero::zero))
+                    Ok(old_val.checked_sub(&new_val).unwrap_or_else(Zero::zero))
                 },
             )?;
             ReserveOf::<T>::try_mutate(&from, currency_id, |val| -> Result<(), DispatchError> {

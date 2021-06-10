@@ -21,6 +21,10 @@ xpmrl-utils = { version = "0.1.0", default-features = false, path = "../utils" }
 xpmrl-proposals = { version = "0.1.0", default-features = false, path = "../proposals" }
 xpmrl-couple = { version = "0.1.0", default-features = false, path = "../couple" }
 
+[dev-dependencies]
+pallet-balances = { version = "3.0.0" }
+xpmrl-tokens = { version = "0.1.0", path = "../tokens" }
+
 [features]
 default = ["std"]
 std = [

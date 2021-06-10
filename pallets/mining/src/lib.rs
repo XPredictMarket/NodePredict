@@ -2,8 +2,14 @@
 
 pub use pallet::*;
 
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
 use frame_support::{dispatch::DispatchError, ensure, traits::Get};
-use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedSub, Zero};
+use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedDiv, CheckedSub, Zero};
 use sp_std::{mem, vec::Vec};
 use xpmrl_couple::Pallet as CouplePallet;
 use xpmrl_traits::tokens::Tokens;
@@ -55,7 +61,7 @@ pub mod pallet {
     pub struct Pallet<T>(_);
 
     #[pallet::storage]
-    #[pallet::getter(fn mine_proposal_info)]
+    #[pallet::getter(fn proposal_mine_info)]
     pub type ProposalMineInfo<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
@@ -65,7 +71,7 @@ pub mod pallet {
     >;
 
     #[pallet::storage]
-    #[pallet::getter(fn total_checkpoint)]
+    #[pallet::getter(fn proposal_checkpoint)]
     pub type ProposalCheckpoint<T: Config> = StorageMap<
         _,
         Blake2_128Concat,
@@ -87,7 +93,7 @@ pub mod pallet {
     >;
 
     #[pallet::storage]
-    #[pallet::getter(fn account_withdrawal_info)]
+    #[pallet::getter(fn account_claimed_blocknumber)]
     pub type AccountClaimedBlocknumber<T: Config> = StorageDoubleMap<
         _,
         Blake2_128Concat,
@@ -119,6 +125,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         BalanceOverflow,
+        InsufficientBalance,
         AccountNotStake,
         ProposalNotExist,
         ProposalNotMined,
@@ -195,12 +202,12 @@ pub mod pallet {
                 ProposalMineInfo::<T>::contains_key(proposal_id),
                 Error::<T>::ProposalNotMined
             );
-            let vec_account_checkpoint = AccountCheckpoint::<T>::get(&who, proposal_id)
+            let vec_account_checkpoints = AccountCheckpoint::<T>::get(&who, proposal_id)
                 .ok_or(Error::<T>::AccountNotStake)?;
-            let len = vec_account_checkpoint.len();
+            let len = vec_account_checkpoints.len();
             ensure!(len > 0, Error::<T>::AccountNotStake);
             let (now, number_stake, number_claim) = with_transaction_result(|| {
-                let number = vec_account_checkpoint[len - 1].clone().number;
+                let number = vec_account_checkpoints[len - 1].clone().number;
                 let (_, number_stake) = Self::inner_unstake(&who, proposal_id, number)?;
                 let (now, number_claim) = Self::inner_claim(&who, proposal_id)?;
                 Ok((now, number_stake, number_claim))
@@ -248,6 +255,7 @@ pub mod pallet {
             let now = Self::block_number();
             ensure!(from > now, Error::<T>::FromMustMoreThanNow);
             ensure!(to > from, Error::<T>::ToMustMoreThanFrom);
+            let _ = Self::currency_id(proposal_id)?;
             ProposalMineInfo::<T>::try_mutate(
                 proposal_id,
                 |option_mine_info| -> Result<(), DispatchError> {
@@ -283,12 +291,12 @@ macro_rules! account_checkpoint_try_mutate {
             T,
             &$who,
             $proposal_id,
-            |option_vec_point| -> Result<BalanceOf<T>, DispatchError> {
+            |option_vec_point| -> Result<(), DispatchError> {
                 let mut $vec_point = option_vec_point.clone().unwrap_or_default();
                 let number = $new_expr;
                 $vec_point.push(Point { from: $now, number });
                 *option_vec_point = Some($vec_point);
-                Ok(number)
+                Ok(())
             },
         )
     };
@@ -370,17 +378,22 @@ impl<T: Config> Pallet<T> {
             AccountCheckpoint::<T>::contains_key(&who, proposal_id),
             Error::<T>::AccountNotStake
         );
-        let finally_number = account_checkpoint_try_mutate!(
+        let mut finally_number: BalanceOf<T> = Zero::zero();
+        account_checkpoint_try_mutate!(
             who,
             proposal_id,
             now,
             vec_point,
             match vec_point.last() {
-                Some(last) => last.number.checked_sub(&number).unwrap_or_else(Zero::zero),
+                Some(last) => {
+                    let diff = last.number.checked_sub(&number).unwrap_or_else(Zero::zero);
+                    finally_number = last.number.checked_sub(&diff).unwrap_or_else(Zero::zero);
+                    diff
+                }
                 None => Zero::zero(),
             }
         )?;
-        let number = number - finally_number;
+        let number = finally_number;
         total_checkpoint_try_mutate!(
             proposal_id,
             now,
@@ -391,7 +404,98 @@ impl<T: Config> Pallet<T> {
             }
         )?;
         T::Tokens::unreserve(currency_id, &who, number)?;
-        Ok((now, finally_number))
+        Ok((now, number))
+    }
+
+    fn get_range(
+        checkpoints: &Vec<Point<T::BlockNumber, BalanceOf<T>>>,
+        i: usize,
+        now: T::BlockNumber,
+        start: T::BlockNumber,
+        end: T::BlockNumber,
+    ) -> [Point<T::BlockNumber, BalanceOf<T>>; 2] {
+        let len = checkpoints.len();
+        let mut from = checkpoints[i].clone();
+        let mut to;
+        if i + 1 == len {
+            to = Point {
+                from: now,
+                number: from.number,
+            };
+        } else {
+            to = checkpoints[i + 1].clone();
+        }
+        if to.from > start && from.from < start {
+            from.from = start;
+        }
+        if to.from > end && from.from < end {
+            to.from = end;
+        }
+        if from.from > end {
+            from.from = end;
+            to.from = end;
+        }
+        if to.from < start {
+            from.from = start;
+            to.from = start;
+        }
+        [from, to]
+    }
+
+    fn get_sum(
+        account_checkpoints: &Vec<Point<T::BlockNumber, BalanceOf<T>>>,
+        total_checkpoints: &Vec<Point<T::BlockNumber, BalanceOf<T>>>,
+        perblock: BalanceOf<T>,
+        now: T::BlockNumber,
+        start: T::BlockNumber,
+        end: T::BlockNumber,
+    ) -> BalanceOf<T> {
+        let account_checkpoint_len = account_checkpoints.len();
+        let total_checkpoint_len = total_checkpoints.len();
+
+        let mut sum: BalanceOf<T> = Zero::zero();
+
+        for i in 0..account_checkpoint_len {
+            let account_range = Self::get_range(&account_checkpoints, i, now, start, end);
+            if account_range[1].from <= start {
+                continue;
+            }
+            if account_range[0].from > end {
+                break;
+            }
+
+            let owner = account_range[0].number;
+            let _100: BalanceOf<T> = 100u32.into();
+
+            for j in 0..total_checkpoint_len {
+                let total_range = Self::get_range(&total_checkpoints, j, now, start, end);
+                let total = total_range[0].number;
+                if total_range[1].from <= account_range[0].from {
+                    continue;
+                }
+                let scale = (owner * _100)
+                    .checked_div(&total)
+                    .unwrap_or_else(Zero::zero);
+                let mut diff: T::BlockNumber = Zero::zero();
+                if total_range[0].from <= account_range[0].from
+                    && total_range[1].from <= account_range[1].from
+                {
+                    diff = account_range[1].from - total_range[0].from;
+                } else if total_range[1].from <= account_range[1].from {
+                    diff = total_range[1].from - total_range[0].from;
+                } else if total_range[1].from > account_range[1].from {
+                    diff = total_range[1].from - account_range[0].from;
+                }
+                unsafe {
+                    let diff = mem::transmute::<&T::BlockNumber, &BalanceOf<T>>(&diff);
+                    sum += (*diff) * scale * perblock / _100;
+                }
+                if total_range[1].from >= account_range[0].from {
+                    break;
+                }
+            }
+        }
+        sum
     }
 
     fn inner_claim(
@@ -410,83 +514,31 @@ impl<T: Config> Pallet<T> {
             AccountCheckpoint::<T>::get(&who, proposal_id).ok_or(Error::<T>::AccountNotStake)?;
 
         let [start, end]: [T::BlockNumber; 2] = [
-            AccountClaimedBlocknumber::<T>::try_mutate(
-                &who,
-                proposal_id,
-                |option_block| -> Result<T::BlockNumber, DispatchError> {
-                    let old = option_block.unwrap_or(mine_info.from);
-                    *option_block = Some(now);
-                    Ok(old)
-                },
-            )?,
+            AccountClaimedBlocknumber::<T>::get(&who, proposal_id).unwrap_or(mine_info.from),
             mine_info.to,
         ];
-
-        let account_checkpoint_len = account_checkpoints.len();
-        let total_checkpoint_len = total_checkpoints.len();
-
-        let get_range = |checkpoints: &Vec<Point<T::BlockNumber, BalanceOf<T>>>,
-                         i: usize|
-         -> [Point<T::BlockNumber, BalanceOf<T>>; 2] {
-            let len = checkpoints.len();
-            let checkpoint = checkpoints[i].clone();
-            let next_checkpoint;
-            if i + 1 == len {
-                next_checkpoint = Point {
-                    from: now,
-                    number: checkpoint.number,
-                };
-            } else {
-                next_checkpoint = checkpoints[i + 1].clone();
-            }
-            [checkpoint, next_checkpoint]
-        };
-
-        let mut sum: BalanceOf<T> = Zero::zero();
-
-        for i in 0..account_checkpoint_len {
-            let account_range = get_range(&account_checkpoints, i);
-            // check range (start, end]
-            if account_range[0].from <= start {
-                continue;
-            }
-            if account_range[0].from > end {
-                break;
-            }
-            // end check
-
-            let owner = account_range[0].number;
-            let _100: BalanceOf<T> = 100u32.into();
-
-            for j in 0..total_checkpoint_len {
-                let total_range = get_range(&total_checkpoints, j);
-                let total = total_range[0].number;
-                let scale = owner * _100 / total;
-                if total_range[1].from <= account_range[0].from {
-                    continue;
-                }
-                let mut diff: T::BlockNumber = Zero::zero();
-                if total_range[0].from <= account_range[0].from
-                    && total_range[1].from <= account_range[1].from
-                {
-                    diff = account_range[0].from - total_range[1].from;
-                } else if total_range[1].from <= account_range[1].from {
-                    diff = total_range[0].from - total_range[1].from;
-                } else if total_range[1].from > account_range[1].from {
-                    diff = total_range[0].from - account_range[1].from;
-                }
-                unsafe {
-                    let diff = mem::transmute::<&T::BlockNumber, &BalanceOf<T>>(&diff);
-                    sum += (*diff) * scale * mine_info.perblock / _100;
-                }
-                if total_range[1].from >= account_range[0].from {
-                    break;
-                }
-            }
-        }
-
-        T::Tokens::transfer(currency_id, &module_account, &who, sum)?;
-
+        let mut sum = Self::get_sum(
+            &account_checkpoints,
+            &total_checkpoints,
+            mine_info.perblock,
+            now,
+            start,
+            end,
+        );
+        ensure!(
+            T::Tokens::balance(currency_id, &module_account) >= sum,
+            Error::<T>::InsufficientBalance,
+        );
+        AccountClaimedBlocknumber::<T>::try_mutate(
+            &who,
+            proposal_id,
+            |option_block| -> Result<T::BlockNumber, DispatchError> {
+                let old = option_block.unwrap_or(mine_info.from);
+                *option_block = Some(now);
+                Ok(old)
+            },
+        )?;
+        sum = T::Tokens::transfer(currency_id, &module_account, &who, sum)?;
         Ok((now, sum))
     }
 }
