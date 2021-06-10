@@ -287,6 +287,7 @@ macro_rules! account_checkpoint_try_mutate {
                 let mut $vec_point = option_vec_point.clone().unwrap_or_default();
                 let number = $new_expr;
                 $vec_point.push(Point { from: $now, number });
+                *option_vec_point = Some($vec_point);
                 Ok(number)
             },
         )
@@ -305,6 +306,7 @@ macro_rules! total_checkpoint_try_mutate {
                     from: $now,
                     number: $new_expr,
                 });
+                *option_vec_point = Some($vec_point);
                 Ok(())
             },
         )
@@ -412,7 +414,7 @@ impl<T: Config> Pallet<T> {
                 &who,
                 proposal_id,
                 |option_block| -> Result<T::BlockNumber, DispatchError> {
-                    let old = option_block.unwrap_or_else(Zero::zero);
+                    let old = option_block.unwrap_or(mine_info.from);
                     *option_block = Some(now);
                     Ok(old)
                 },
@@ -420,14 +422,23 @@ impl<T: Config> Pallet<T> {
             mine_info.to,
         ];
 
-        let account_checkpoint_len = account_checkpoints.len() - 1;
-        let total_checkpoint_len = total_checkpoints.len() - 1;
+        let account_checkpoint_len = account_checkpoints.len();
+        let total_checkpoint_len = total_checkpoints.len();
 
         let get_range = |checkpoints: &Vec<Point<T::BlockNumber, BalanceOf<T>>>,
                          i: usize|
          -> [Point<T::BlockNumber, BalanceOf<T>>; 2] {
+            let len = checkpoints.len();
             let checkpoint = checkpoints[i].clone();
-            let next_checkpoint = checkpoints[i + 1].clone();
+            let next_checkpoint;
+            if i + 1 == len {
+                next_checkpoint = Point {
+                    from: now,
+                    number: checkpoint.number,
+                };
+            } else {
+                next_checkpoint = checkpoints[i + 1].clone();
+            }
             [checkpoint, next_checkpoint]
         };
 
