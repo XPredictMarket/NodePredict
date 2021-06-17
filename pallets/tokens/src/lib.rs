@@ -19,7 +19,6 @@ use frame_support::{
 use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedSub, One, Zero};
 use sp_std::vec::Vec;
 use xpmrl_traits::tokens::Tokens;
-use xpmrl_utils::with_transaction_result;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -532,32 +531,26 @@ impl<T: Config> Pallet<T> {
             T::Currency::reserve(&from, number)?;
             Ok(number)
         } else {
-            with_transaction_result(|| {
-                let actual_number = FreeBalanceOf::<T>::try_mutate(
-                    &from,
-                    currency_id,
-                    |val| -> Result<BalanceOf<T>, DispatchError> {
-                        let old_val = val.unwrap_or_else(Zero::zero);
-                        ensure!(old_val >= number, Error::<T>::InsufficientBalance);
-                        let new_val = old_val.checked_sub(&number).unwrap_or_else(Zero::zero);
-                        *val = Some(new_val);
-                        Ok(old_val.checked_sub(&number).unwrap_or_else(Zero::zero))
-                    },
-                )?;
-                ReserveOf::<T>::try_mutate(
-                    &from,
-                    currency_id,
-                    |val| -> Result<(), DispatchError> {
-                        let old_val = val.unwrap_or_else(Zero::zero);
-                        let new_val = old_val
-                            .checked_add(&actual_number)
-                            .ok_or(Error::<T>::BalanceOverflow)?;
-                        *val = Some(new_val);
-                        Ok(())
-                    },
-                )?;
-                Ok(actual_number)
-            })
+            let actual_number = FreeBalanceOf::<T>::try_mutate(
+                &from,
+                currency_id,
+                |val| -> Result<BalanceOf<T>, DispatchError> {
+                    let old_val = val.unwrap_or_else(Zero::zero);
+                    ensure!(old_val >= number, Error::<T>::InsufficientBalance);
+                    let new_val = old_val.checked_sub(&number).unwrap_or_else(Zero::zero);
+                    *val = Some(new_val);
+                    Ok(old_val.checked_sub(&new_val).unwrap_or_else(Zero::zero))
+                },
+            )?;
+            ReserveOf::<T>::try_mutate(&from, currency_id, |val| -> Result<(), DispatchError> {
+                let old_val = val.unwrap_or_else(Zero::zero);
+                let new_val = old_val
+                    .checked_add(&actual_number)
+                    .ok_or(Error::<T>::BalanceOverflow)?;
+                *val = Some(new_val);
+                Ok(())
+            })?;
+            Ok(actual_number)
         }
     }
 

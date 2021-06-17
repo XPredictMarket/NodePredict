@@ -15,7 +15,6 @@ use frame_support::{
     traits::{Get, Time},
 };
 use num_traits::pow::pow;
-use pallet::Pallet;
 use sp_runtime::{
     traits::{CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, IntegerSquareRoot, One, Zero},
     DispatchError,

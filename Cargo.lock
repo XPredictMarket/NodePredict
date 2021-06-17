@@ -4476,6 +4476,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
+ "xpmrl-autonomy",
  "xpmrl-couple",
  "xpmrl-proposals",
  "xpmrl-tokens",
@@ -8484,6 +8485,26 @@ dependencies = [
  "curve25519-dalek 3.1.0",
  "rand_core 0.5.1",
  "zeroize",
+]
+
+[[package]]
+name = "xpmrl-autonomy"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-balances",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xpmrl-couple",
+ "xpmrl-proposals",
+ "xpmrl-tokens",
+ "xpmrl-traits",
+ "xpmrl-utils",
 ]
 
 [[package]]
