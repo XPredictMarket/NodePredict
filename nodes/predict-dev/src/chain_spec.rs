@@ -80,9 +80,9 @@ pub fn development_config() -> Result<ChainSpec, String> {
                 ],
                 true,
                 vec![
-                    ("X POT", "XPOT", 8),
+                    ("P POT", "PPOT", 8),
                     ("Test Coin", "TestC", 8),
-                    ("X Ethereum", "XETH", 18),
+                    ("P Ethereum", "PETH", 18),
                 ],
                 vec![
                     (
@@ -167,9 +167,9 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                 ],
                 true,
                 vec![
-                    ("X POT", "XPOT", 8),
+                    ("P POT", "PPOT", 8),
                     ("Test Coin", "TestC", 8),
-                    ("X Ethereum", "XETH", 18),
+                    ("P Ethereum", "PETH", 18),
                 ],
                 vec![
                     (

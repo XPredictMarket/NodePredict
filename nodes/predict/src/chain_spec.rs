@@ -64,9 +64,9 @@ pub fn mainnet_test_config() -> Result<ChainSpec, String> {
                 ],
                 true,
                 vec![
-                    ("X POT", "XPOT", 8),
+                    ("P POT", "PPOT", 8),
                     ("Test Coin", "TestC", 8),
-                    ("X Ethereum", "XETH", 18),
+                    ("P Ethereum", "PETH", 18),
                 ],
                 vec![
                     (
@@ -139,9 +139,9 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                 ],
                 true,
                 vec![
-                    ("X POT", "XPOT", 8),
+                    ("P POT", "PPOT", 8),
                     ("Test Coin", "TestC", 8),
-                    ("X Ethereum", "XETH", 18),
+                    ("P Ethereum", "PETH", 18),
                 ],
                 vec![],
                 get_account_id_from_address("5HGTTu6qeU4oNmKepkqHNJjM56Mfh837SyYzG7CSugE4U7f5"),
