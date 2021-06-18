@@ -473,12 +473,19 @@ impl<T: Config> Pallet<T> {
                 if total_range[1].from <= account_range[0].from {
                     continue;
                 }
+                if total_range[0].from >= account_range[1].from {
+                    break;
+                }
                 let scale = (owner * _100)
                     .checked_div(&total)
                     .unwrap_or_else(Zero::zero);
                 let mut diff: T::BlockNumber = Zero::zero();
-                if total_range[0].from <= account_range[0].from
-                    && total_range[1].from <= account_range[1].from
+                if total_range[0].from == account_range[0].from
+                    && total_range[1].from == account_range[1].from
+                {
+                    diff = account_range[1].from - account_range[0].from;
+                } else if total_range[0].from < account_range[0].from
+                    && total_range[1].from < account_range[1].from
                     && total_range[1].from > account_range[0].from
                 {
                     diff = account_range[1].from - total_range[0].from;
@@ -490,9 +497,6 @@ impl<T: Config> Pallet<T> {
                 unsafe {
                     let diff = mem::transmute::<&T::BlockNumber, &BalanceOf<T>>(&diff);
                     sum += (*diff) * scale * perblock / _100;
-                }
-                if total_range[0].from >= account_range[1].from {
-                    break;
                 }
             }
         }
