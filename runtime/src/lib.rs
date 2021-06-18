@@ -300,7 +300,22 @@ parameter_types! {
 
 impl autonomy::Config for Runtime {
     type Event = Event;
+    type AuthorityId = autonomy::crypto::OcwAuthId;
+    type Call = Call;
     type StakeCurrencyId = StakeCurrencyId;
+}
+
+impl frame_system::offchain::SigningTypes for Runtime {
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
+}
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
+    Call: From<C>,
+{
+    type OverarchingCall = Call;
+    type Extrinsic = UncheckedExtrinsic;
 }
 
 parameter_types! {
@@ -336,7 +351,7 @@ construct_runtime!(
         // Include the custom logic from the template pallet in the runtime.
         Proposals: proposals::{Module, Call, Config, Storage, Event<T>},
         Couple: couple::{Module, Call, Storage, Event<T>},
-        Autonomy: autonomy::{Module, Call, Config<T>, Storage, Event<T>},
+        Autonomy: autonomy::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
         Tokens: tokens::{Module, Call, Config<T>, Storage, Event<T>},
     }
 );

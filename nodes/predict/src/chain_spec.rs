@@ -199,7 +199,7 @@ fn predict_genesis(
             minimum_interval_time: 60 * 1000,
         }),
         autonomy: Some(AutonomyConfig {
-            minimal_number: 10000000000,
+            minimal_number: 10000 * 100000000,
         }),
     }
 }
