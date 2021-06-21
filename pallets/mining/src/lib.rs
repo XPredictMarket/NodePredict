@@ -425,17 +425,17 @@ impl<T: Config> Pallet<T> {
         } else {
             to = checkpoints[i + 1].clone();
         }
-        if to.from > start && from.from < start {
+        if to.from >= start && from.from < start {
             from.from = start;
         }
-        if to.from > end && from.from < end {
+        if to.from >= end && from.from < end {
             to.from = end;
         }
-        if from.from > end {
+        if from.from >= end {
             from.from = end;
             to.from = end;
         }
-        if to.from < start {
+        if to.from <= start {
             from.from = start;
             to.from = start;
         }
