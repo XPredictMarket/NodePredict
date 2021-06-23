@@ -519,7 +519,16 @@ impl<T: Config> Pallet<T> {
             AccountCheckpoint::<T>::get(&who, proposal_id).ok_or(Error::<T>::AccountNotStake)?;
 
         let [start, end]: [T::BlockNumber; 2] = [
-            AccountClaimedBlocknumber::<T>::get(&who, proposal_id).unwrap_or(mine_info.from),
+            match AccountClaimedBlocknumber::<T>::get(&who, proposal_id) {
+                Some(val) => {
+                    if val < mine_info.from {
+                        mine_info.from
+                    } else {
+                        val
+                    }
+                }
+                None => mine_info.from,
+            },
             mine_info.to,
         ];
         let mut sum = Self::get_sum(

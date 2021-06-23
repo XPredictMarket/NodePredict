@@ -12,8 +12,16 @@ test:
 
 .PHONY: run
 run:
-	 cargo run --release -- --dev --tmp
+	 cargo run --release --bin node-predict -- --dev --tmp
+
+.PHONY: dev-dev
+run-dev:
+	 cargo run --release --bin node-predict-dev -- --dev --tmp
 
 .PHONY: build
 build:
 	 cargo build --release
+
+.PHONY: wasm
+wasm:
+	 cargo build --release -p predict-runtime
