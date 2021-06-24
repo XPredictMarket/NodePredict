@@ -54,6 +54,9 @@ pub mod pallet {
 
         #[pallet::constant]
         type MineTokenCurrencyId: Get<CurrencyIdOf<Self>>;
+
+        #[pallet::constant]
+        type ScaleUpper: Get<BalanceOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -465,7 +468,7 @@ impl<T: Config> Pallet<T> {
             }
 
             let owner = account_range[0].number;
-            let _100: BalanceOf<T> = 100u32.into();
+            let upper: BalanceOf<T> = T::ScaleUpper::get();
 
             for j in 0..total_checkpoint_len {
                 let total_range = Self::get_range(&total_checkpoints, j, now, start, end);
@@ -476,7 +479,7 @@ impl<T: Config> Pallet<T> {
                 if total_range[0].from >= account_range[1].from {
                     break;
                 }
-                let scale = (owner * _100)
+                let scale = (owner * upper)
                     .checked_div(&total)
                     .unwrap_or_else(Zero::zero);
                 let mut diff: T::BlockNumber = Zero::zero();
@@ -496,7 +499,7 @@ impl<T: Config> Pallet<T> {
                 }
                 unsafe {
                     let diff = mem::transmute::<&T::BlockNumber, &BalanceOf<T>>(&diff);
-                    sum += (*diff) * scale * perblock / _100;
+                    sum += (*diff) * scale * perblock / upper;
                 }
             }
         }

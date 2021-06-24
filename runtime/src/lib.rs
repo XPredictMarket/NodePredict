@@ -322,12 +322,14 @@ impl cross::Config for Runtime {
 parameter_types! {
     pub const MiningModuleId: ModuleId = ModuleId(*b"xpmining");
     pub const MineTokenCurrencyId: CurrencyId = 1;
+    pub const ScaleUpper: Balance = 100_000_000;
 }
 
 impl mining::Config for Runtime {
     type Event = Event;
     type ModuleId = MiningModuleId;
     type MineTokenCurrencyId = MineTokenCurrencyId;
+    type ScaleUpper = ScaleUpper;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
