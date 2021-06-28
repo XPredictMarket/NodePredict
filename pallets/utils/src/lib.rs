@@ -1,3 +1,11 @@
+//! <!-- markdown-link-check-disable -->
+//! # Couple
+//!
+//! Run `cargo doc --package xpmrl-utils --open` to view this pallet's documentation.
+//!
+//! Defined some tool functions and macros
+//!
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::storage::with_transaction;

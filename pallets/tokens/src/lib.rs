@@ -1,3 +1,20 @@
+//! <!-- markdown-link-check-disable -->
+//! # Couple
+//!
+//! Run `cargo doc --package xpmrl-tokens --open` to view this pallet's documentation.
+//!
+//! A multi-asset management module
+//!
+//! - [`xpmrl_tokens::Config`](./trait.Config.html)
+//! - [`Call`](./enum.Call.html)
+//! - [`Module`](./struct.Module.html)
+//!
+//! ## Overview
+//!
+//! This module can manage all on-chain assets in a unified manner, with operations such as
+//! additional issuance, transfer, destruction, and pledge.
+//!
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
@@ -33,6 +50,7 @@ pub mod pallet {
     use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, vec::Vec};
     use xpmrl_utils::with_transaction_result;
 
+    /// Basic attributes of the tokens
     #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, Default)]
     pub struct PRC20 {
         pub name: Vec<u8>,
@@ -54,11 +72,13 @@ pub mod pallet {
             + MaybeSerializeDeserialize
             + Debug
             + AtLeast32BitUnsigned;
+        /// Native asset operation interface
         type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
         #[pallet::constant]
         type NativeCurrencyId: Get<CurrencyIdOf<Self>>;
 
+        /// Similar to the contract address of ETH, here is used to manage treasury funds
         #[pallet::constant]
         type ModuleId: Get<ModuleId>;
     }
@@ -67,6 +87,7 @@ pub mod pallet {
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
+    /// Tokens id length, currently if a new token is created, it is the id of the new tokens
     #[pallet::storage]
     #[pallet::getter(fn current_currency_id)]
     pub type CurrentCurrencyId<T: Config> = StorageValue<_, T::CurrencyId>;
@@ -108,16 +129,19 @@ pub mod pallet {
         }
     }
 
+    /// store the basic attributes of all tokens.
     #[pallet::storage]
     #[pallet::getter(fn currencies)]
     pub type Currencies<T: Config> =
         StorageMap<_, Blake2_128Concat, T::CurrencyId, PRC20, OptionQuery>;
 
+    /// Total amount of tokens
     #[pallet::storage]
     #[pallet::getter(fn total_supply)]
     pub type TotalSupply<T: Config> =
         StorageMap<_, Blake2_128Concat, T::CurrencyId, BalanceOf<T>, OptionQuery>;
 
+    /// Available balance of the account
     #[pallet::storage]
     #[pallet::getter(fn free_balance_of)]
     pub type FreeBalanceOf<T: Config> = StorageDoubleMap<
@@ -130,6 +154,7 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// Account locked balance
     #[pallet::storage]
     #[pallet::getter(fn reserve_of)]
     pub type ReserveOf<T: Config> = StorageDoubleMap<
@@ -142,6 +167,7 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// The number of assets that the user authorizes to others to operate
     #[pallet::storage]
     #[pallet::getter(fn allowance)]
     pub type Allowance<T: Config> = StorageDoubleMap<
@@ -171,13 +197,11 @@ pub mod pallet {
         CurrencyIdOverflow,
         CurrencyIdNotExist,
         BalanceOverflow,
-        ZeroBalance,
         InsufficientBalance,
         TransferFromSelf,
         BurnFromSelf,
         ApproveSelf,
         OriginNotAllowed,
-        CannotBurnNativeAsset,
     }
 
     #[pallet::hooks]
@@ -185,6 +209,9 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
+        /// create new tokens
+        ///
+        /// The dispatch origin for this call is `root`.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 2))]
         pub fn new_asset(
             origin: OriginFor<T>,
@@ -198,6 +225,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// mint a tokens
+        ///
+        /// The dispatch origin for this call is `root`.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn mint(
             origin: OriginFor<T>,
@@ -212,6 +242,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// burn tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn burn(
             origin: OriginFor<T>,
@@ -225,6 +258,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// burn tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(6, 2))]
         pub fn burn_from(
             origin: OriginFor<T>,
@@ -252,6 +288,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// transfer tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(4, 2))]
         pub fn transfer(
             origin: OriginFor<T>,
@@ -268,6 +307,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// transfer tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(7, 3))]
         pub fn transfer_from(
             origin: OriginFor<T>,
@@ -297,6 +339,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// authorize tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn approve(
             origin: OriginFor<T>,
@@ -554,6 +599,46 @@ impl<T: Config> Pallet<T> {
         }
     }
 
+    fn inner_slash_reserved(
+        currency_id: T::CurrencyId,
+        from: &T::AccountId,
+        number: BalanceOf<T>,
+    ) -> Result<BalanceOf<T>, DispatchError> {
+        Self::ensure_currency_id(currency_id)?;
+        if currency_id == T::NativeCurrencyId::get() {
+            let old_value = T::Currency::reserved_balance(&from);
+            let new_value = old_value.checked_sub(&number).unwrap_or_else(Zero::zero);
+            let (_, actual_number) = T::Currency::slash_reserved(
+                &from,
+                old_value.checked_sub(&new_value).unwrap_or_else(Zero::zero),
+            );
+            Ok(actual_number)
+        } else {
+            let actual_number = ReserveOf::<T>::try_mutate(
+                &from,
+                currency_id,
+                |val| -> Result<BalanceOf<T>, DispatchError> {
+                    let old_val = val.unwrap_or_else(Zero::zero);
+                    let new_val = old_val.checked_sub(&number).unwrap_or_else(Zero::zero);
+                    *val = Some(new_val);
+                    Ok(old_val.checked_sub(&new_val).unwrap_or_else(Zero::zero))
+                },
+            )?;
+            let _ = TotalSupply::<T>::try_mutate(
+                currency_id,
+                |total_supply| -> Result<BalanceOf<T>, DispatchError> {
+                    let old_total = total_supply.ok_or(Error::<T>::CurrencyIdNotExist)?;
+                    let new_total = old_total
+                        .checked_sub(&actual_number)
+                        .unwrap_or_else(Zero::zero);
+                    *total_supply = Some(new_total);
+                    Ok(old_total.checked_sub(&new_total).unwrap_or_else(Zero::zero))
+                },
+            )?;
+            Ok(actual_number)
+        }
+    }
+
     pub fn inner_unreserve(
         currency_id: T::CurrencyId,
         from: &T::AccountId,
@@ -603,6 +688,7 @@ impl<T: Config> Pallet<T> {
     }
 }
 
+/// Implement the public token interface
 impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
     type CurrencyId = T::CurrencyId;
     type Balance = BalanceOf<T>;
@@ -662,6 +748,14 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
         Self::inner_unreserve(currency_id, &who, value)
+    }
+
+    fn slash_reserved(
+        currency_id: Self::CurrencyId,
+        who: &T::AccountId,
+        value: Self::Balance,
+    ) -> Result<Self::Balance, DispatchError> {
+        Self::inner_slash_reserved(currency_id, &who, value)
     }
 
     fn reserved_balance(currency_id: Self::CurrencyId, who: &T::AccountId) -> Self::Balance {

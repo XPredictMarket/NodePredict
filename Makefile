@@ -25,3 +25,11 @@ build:
 .PHONY: wasm
 wasm:
 	 cargo build --release -p predict-runtime
+
+.PHONY: doc
+doc:
+	 cargo doc
+
+.PHONY: open-doc
+open-doc:
+	 cargo doc --open

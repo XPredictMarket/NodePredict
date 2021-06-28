@@ -1,3 +1,20 @@
+//! <!-- markdown-link-check-disable -->
+//! # Couple
+//!
+//! Run `cargo doc --package xpmrl-proposals --open` to view this pallet's documentation.
+//!
+//! General proposal entrypoint, a module that manages all versions of proposal information
+//!
+//! - [`xpmrl_proposals::Config`](./trait.Config.html)
+//! - [`Call`](./enum.Call.html)
+//! - [`Module`](./struct.Module.html)
+//!
+//! ## Overview
+//!
+//! All versions of proposals are created through this entry, and specific operations are handled
+//! by the corresponding module, which only manages the same information in the proposal.
+//!
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
@@ -41,10 +58,11 @@ pub mod pallet {
         <T as Config>::CategoryId,
     >>::CurrencyId;
 
+    /// This is the pallet's configuration trait
     #[pallet::config]
     pub trait Config: frame_system::Config {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
+        /// Get the timestamp of the current time
         type Time: Time;
         type ProposalId: FullCodec
             + Eq
@@ -67,6 +85,7 @@ pub mod pallet {
             + MaybeSerializeDeserialize
             + Debug
             + AtLeast32BitUnsigned;
+        /// LiquidityPool trait, used to manipulate the couple module downward
         type LiquidityPool: LiquidityPool<
             Self::AccountId,
             Self::ProposalId,
@@ -74,6 +93,7 @@ pub mod pallet {
             Self::CategoryId,
         >;
 
+        /// Decimals of fee
         #[pallet::constant]
         type EarnTradingFeeDecimals: Get<u8>;
 
@@ -85,10 +105,15 @@ pub mod pallet {
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
+    /// Proposal id length, currently if a new proposal is created, it is the id of the new
+    /// proposal
     #[pallet::storage]
     #[pallet::getter(fn current_proposal_id)]
     pub type CurrentProposalId<T: Config> = StorageValue<_, T::ProposalId>;
 
+    /// Version id, forwarded to different processing modules through different versions
+    ///
+    /// This storage is not currently used
     #[pallet::storage]
     #[pallet::getter(fn proposal_liquidate_version_id)]
     pub type ProposalLiquidateVersionId<T: Config> =
@@ -104,6 +129,8 @@ pub mod pallet {
     pub type ProposalOwner<T: Config> =
         StorageMap<_, Blake2_128Concat, T::ProposalId, T::AccountId, OptionQuery>;
 
+    /// When creating a proposal, the asset ids that have been used cannot be used as settlement
+    /// currency.
     #[pallet::storage]
     #[pallet::getter(fn proposal_used_currency_id)]
     pub type ProposalUsedCurrencyId<T: Config> =
@@ -113,10 +140,13 @@ pub mod pallet {
     #[pallet::getter(fn proposal_automatic_expiration_time)]
     pub type ProposalAutomaticExpirationTime<T: Config> = StorageValue<_, MomentOf<T>>;
 
+    /// The minimum difference between the end time of the proposal and the current time. The unit
+    /// is milliseconds
     #[pallet::storage]
     #[pallet::getter(fn proposal_minimum_interval_time)]
     pub type ProposaMinimumIntervalTime<T: Config> = StorageValue<_, MomentOf<T>>;
 
+    /// The percentage of the commission that the creator of the proposal can get.
     #[pallet::storage]
     #[pallet::getter(fn proposal_liquidity_provider_fee_rate)]
     pub type ProposalLiquidityProviderFeeRate<T: Config> = StorageValue<_, u32>;
@@ -158,18 +188,24 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
+        /// The proposal id has reached the upper limit
         ProposalIdOverflow,
         ProposalIdNotExist,
+        /// When setting the state, the new state cannot be the same as the old state
         StatusMustDiff,
         CategoryIdNotZero,
         TokenIdNotZero,
         CloseTimeMustLargeThanNow,
+        /// Illegal assets were used to create a proposal
         CurrencyIdNotAllowed,
         NumberMustMoreThanZero,
     }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        /// When the block is encapsulated, execute the following hook function
+        ///
+        /// At this time, it is used to automatically expire the proposal
         fn on_initialize(n: T::BlockNumber) -> Weight {
             Self::begin_block(n).unwrap_or_else(|e| {
                 sp_runtime::print(e);
@@ -180,6 +216,9 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
+        /// Create a new proposal
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
         pub fn new_proposal(
             origin: OriginFor<T>,
@@ -226,6 +265,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// Set new state for proposal
+        ///
+        /// The dispatch origin for this call is `root`.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
         pub fn set_status(
             origin: OriginFor<T>,

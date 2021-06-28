@@ -1,3 +1,22 @@
+//! <!-- markdown-link-check-disable -->
+//! # Autonomy
+//!
+//! Run `cargo doc --package xpmrl-autonomy --open` to view this pallet's documentation.
+//!
+//! A module allows ordinary users to govern the results of proposals
+//!
+//! - [`xpmrl_autonomy::Config`](./trait.Config.html)
+//! - [`Call`](./enum.Call.html)
+//! - [`Module`](./struct.Module.html)
+//!
+//! ## Overview
+//!
+//! This module allows users to pledge governance tokens to become
+//! governance nodes, and can upload or merge proposal results
+//!
+//! Only the data provided by the officially signed node is valid.
+//!
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
@@ -12,11 +31,23 @@ use sp_runtime::{
     },
 };
 use xpmrl_couple::Pallet as CouplePallet;
-use xpmrl_traits::tokens::Tokens;
+use xpmrl_proposals::Pallet as ProposalPallet;
+use xpmrl_traits::{tokens::Tokens, ProposalStatus};
 
+/// Defines application identifier for crypto keys of this module.
+///
+/// Every module that deals with signatures needs to declare its unique identifier for
+/// its crypto keys.
+/// When an offchain worker is signing transactions it's going to request keys from type
+/// `KeyTypeId` via the keystore to sign the transaction.
+/// The keys can be inserted manually via RPC (see `author_insertKey`).
 pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"xpml");
+/// The type to sign and send transactions.
 const UNSIGNED_TXS_PRIORITY: u64 = 100;
 
+/// Based on the above `KeyTypeId` we need to generate a pallet-specific crypto type wrapper.
+/// We can utilize the supported crypto kinds (`sr25519`, `ed25519` and `ecdsa`) and augment
+/// them with the pallet-specific identifier.
 pub mod crypto {
     use crate::KEY_TYPE;
     use sp_core::sr25519::Signature as Sr25519Signature;
@@ -26,12 +57,15 @@ pub mod crypto {
     app_crypto!(sr25519, KEY_TYPE);
 
     pub struct OcwAuthId;
+
+    // implemented for runtime
     impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for OcwAuthId {
         type RuntimeAppPublic = Public;
         type GenericSignature = sp_core::sr25519::Signature;
         type GenericPublic = sp_core::sr25519::Public;
     }
 
+    // implemented for mock runtime in test
     impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature>
         for OcwAuthId
     {
@@ -46,40 +80,55 @@ use frame_support::traits::GenesisBuild;
 
 #[frame_support::pallet]
 pub mod pallet {
-    use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
-    use frame_system::{offchain::*, pallet_prelude::*};
+    use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
+    use frame_system::{offchain::*, pallet_prelude::*, RawOrigin};
     use sp_runtime::traits::*;
-    use xpmrl_traits::tokens::Tokens;
+    use xpmrl_proposals::Pallet as ProposalPallet;
+    use xpmrl_traits::{tokens::Tokens, ProposalStatus};
     use xpmrl_utils::with_transaction_result;
 
     pub(crate) type BalanceOf<T> = <<T as xpmrl_couple::Config>::Tokens as Tokens<
         <T as frame_system::Config>::AccountId,
     >>::Balance;
-
+    pub(crate) type MomentOf<T> = <<T as xpmrl_proposals::Config>::Time as Time>::Moment;
     pub(crate) type CurrencyIdOf<T> = <<T as xpmrl_couple::Config>::Tokens as Tokens<
         <T as frame_system::Config>::AccountId,
     >>::CurrencyId;
 
+    /// The payload struct of unsigned transaction with signed payload
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
     pub struct Payload<Public, ProposalId, ResultId> {
+        /// The id of the proposal that needs to upload the result
         proposal_id: ProposalId,
+        /// The asset id of the proposal result
+        ///
+        /// The proposal option is a token, so here only the id of the corresponding token needs to be uploaded
         result: ResultId,
         public: Public,
     }
 
+    /// implament trait for payload
+    /// make sure the payload can be signed and verify
     impl<T: Config> SignedPayload<T> for Payload<T::Public, T::ProposalId, CurrencyIdOf<T>> {
         fn public(&self) -> T::Public {
             self.public.clone()
         }
     }
 
+    /// This is the pallet's configuration trait
     #[pallet::config]
     #[pallet::disable_frame_system_supertrait_check]
     pub trait Config: xpmrl_couple::Config + SigningTypes {
+        /// The overarching event type.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+        /// The overarching dispatch call type.
         type Call: From<Call<Self>>;
+        /// The identifier type for an offchain worker.
         type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 
+        /// The asset id of the governance token
+        ///
+        /// This ensures that we only accept the assets of this id as governance assets
         #[pallet::constant]
         type StakeCurrencyId: Get<CurrencyIdOf<Self>>;
     }
@@ -88,16 +137,21 @@ pub mod pallet {
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
+    /// stored those accounts that staked tokens and their corresponding amounts
     #[pallet::storage]
     #[pallet::getter(fn staked_account)]
     pub type StakedAccount<T: Config> =
         StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, OptionQuery>;
 
+    /// actual governance account
+    ///
+    /// officially labeled account, but this account must have staked governance tokens
     #[pallet::storage]
     #[pallet::getter(fn autonomy_account)]
     pub type AutonomyAccount<T: Config> =
         StorageMap<_, Blake2_128Concat, T::AccountId, (), OptionQuery>;
 
+    /// used to temporarily store the results of the proposal uploaded by the governance account
     #[pallet::storage]
     #[pallet::getter(fn temporary_results)]
     pub type TemporaryResults<T: Config> = StorageDoubleMap<
@@ -110,18 +164,32 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// Store the proposal id in the publicity and the time when the publicity started
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_announcement)]
+    pub type ProposalAnnouncement<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::ProposalId, MomentOf<T>, OptionQuery>;
+
+    /// used to temporarily store the statistics of the proposal results uploaded from the governance account
     #[pallet::storage]
     #[pallet::getter(fn statistical_results)]
     pub type StatisticalResults<T: Config> =
         StorageDoubleMap<_, Blake2_128Concat, T::ProposalId, Twox64Concat, CurrencyIdOf<T>, u64>;
 
+    /// the minimum number of governance tokens that need to be staked to become a governance node
     #[pallet::storage]
     #[pallet::getter(fn minimal_stake_number)]
     pub type MinimalStakeNumber<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
 
+    /// the minimum number of governance tokens that need to be staked to become a governance node
+    #[pallet::storage]
+    #[pallet::getter(fn publicity_interval)]
+    pub type PublicityInterval<T: Config> = StorageValue<_, MomentOf<T>, OptionQuery>;
+
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub minimal_number: BalanceOf<T>,
+        pub interval: u32,
     }
 
     #[cfg(feature = "std")]
@@ -129,6 +197,7 @@ pub mod pallet {
         fn default() -> Self {
             Self {
                 minimal_number: Zero::zero(),
+                interval: Zero::zero(),
             }
         }
     }
@@ -137,36 +206,73 @@ pub mod pallet {
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
             MinimalStakeNumber::<T>::set(Some(self.minimal_number));
+            PublicityInterval::<T>::set(Some(self.interval.into()));
         }
     }
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
+        /// Account stake successfully.
         Stake(T::AccountId, BalanceOf<T>),
+        /// Account unstake successfully.
         UnStake(T::AccountId, BalanceOf<T>),
+        /// Punish evil nodes.
+        Slash(T::AccountId, BalanceOf<T>),
+        /// Tag an account.
         Tagging(T::AccountId),
+        /// Untag an account.
         Untagging(T::AccountId),
+        /// Account uploaded result.
         UploadResult(T::AccountId, T::ProposalId, CurrencyIdOf<T>),
+        /// Merge the final result.
+        MergeResult(T::AccountId, T::ProposalId, CurrencyIdOf<T>),
+        /// The result of the proposal enters the publicity state
+        Announcement(T::ProposalId, MomentOf<T>),
+        /// Set the minimum stake amount
         SetMinimalNumber(BalanceOf<T>),
-        MergeResult(T::ProposalId, CurrencyIdOf<T>),
+        /// Set the publicity interval
+        SetPublicityInterval(u32),
     }
 
     #[pallet::error]
     pub enum Error<T> {
+        /// The account has already been staked and cannot be staked repeatedly
         AccountAlreadyStaked,
+        /// Account not staked
         AccountNotStaked,
+        /// The account has already uploaded the results, the same proposal cannot be uploaded
+        /// again
         AccountHasAlreadyUploaded,
+        /// Value has been overflow
         Overflow,
+        /// Proposal is not at the wait for result, unable to upload results
+        ProposalAbnormalState,
+        /// The proposal does not exist or is not set to mining
         ProposalIdNotExist,
+        /// Incorrect proposal options
         ProposalOptionNotCorrect,
+        /// The final count of all the options of the proposal is equal, and the final result
+        /// cannot be obtained
         ResultIsEqual,
+        /// The result has been publicized and cannot be publicized again
+        ResultHasBeenAnnounced,
+        /// The account has been tagged and cannot be tagged again
         AccountHasTagged,
+        /// The account has not been tagged yet
         AccountNotTagged,
+        /// The merger time has not arrived, and there is a two-day publicity period
+        TimeNotUp,
     }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        /// Offchain Worker entry point.
+        ///
+        /// The node can upload the result in its own way, or it can write another program to
+        /// upload the result by itself.
+        ///
+        /// This callback function does not have to be implemented.
         fn offchain_worker(_block_number: T::BlockNumber) {
             debug::info!("Entering off-chain worker");
         }
@@ -174,7 +280,11 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        /// Ordinary accounts can become pre-selected governance nodes by staking governance
+        /// tokens.
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1, 1))]
         pub fn stake(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
             let number = with_transaction_result(|| Self::inner_stake(&who))?;
@@ -182,6 +292,10 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// If the account is not contested as a governance node, he can withdraw the pledged
+        /// governance tokens by himself.
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
         pub fn unstake(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
@@ -190,6 +304,26 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// Slash the reserved of a given account.
+        ///
+        /// If a node commits evil and uploads some false results, the official or the community
+        /// will directly punish all his pledges and cancel his label.
+        ///
+        /// The dispatch origin for this call is `root`.
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        pub fn slash(origin: OriginFor<T>, who: T::AccountId) -> DispatchResultWithPostInfo {
+            let _ = ensure_root(origin)?;
+            let number = with_transaction_result(|| Self::inner_slash(&who))?;
+            Self::deposit_event(Event::<T>::Slash(who, number));
+            Ok(().into())
+        }
+
+        /// Upload proposal results
+        ///
+        /// The governance node uploads the final result of the proposal through an unsigned
+        /// transaction with a signed payload
+        ///
+        /// This transaction does not need to be signed, but the payload must be signed
         #[pallet::weight(0)]
         pub fn upload_result(
             origin: OriginFor<T>,
@@ -202,23 +336,81 @@ pub mod pallet {
                 proposal_id,
                 result,
             } = payload;
+            Self::ensure_proposal_status(proposal_id, ProposalStatus::WaitingForResults)?;
             let who = public.into_account();
             with_transaction_result(|| Self::inner_upload_result(&who, proposal_id, result))?;
             Self::deposit_event(Event::<T>::UploadResult(who, proposal_id, result));
             Ok(().into())
         }
 
+        /// Modify the status of the proposal to be publicized, and record the start time of the
+        /// publicity
+        ///
+        /// The dispatch origin for this call is `root`.
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        pub fn move_to_announcement(
+            origin: OriginFor<T>,
+            proposal_id: T::ProposalId,
+        ) -> DispatchResultWithPostInfo {
+            let _ = ensure_root(origin)?;
+            Self::ensure_proposal_status(proposal_id, ProposalStatus::WaitingForResults)?;
+            let (id1, id2) = Self::proposal_pairs(proposal_id)?;
+            let sum1 = StatisticalResults::<T>::get(proposal_id, id1).unwrap_or_else(Zero::zero);
+            let sum2 = StatisticalResults::<T>::get(proposal_id, id2).unwrap_or_else(Zero::zero);
+            ensure!(sum1 != sum2, Error::<T>::ResultIsEqual);
+            let now = T::Time::now();
+            with_transaction_result(|| {
+                ProposalAnnouncement::<T>::try_mutate(
+                    proposal_id,
+                    |option| -> Result<(), DispatchError> {
+                        match option {
+                            Some(_) => Err(Error::<T>::ResultHasBeenAnnounced)?,
+                            None => {
+                                *option = Some(now);
+                                Ok(())
+                            }
+                        }
+                    },
+                )?;
+                ProposalPallet::<T>::set_status(
+                    RawOrigin::Root.into(),
+                    proposal_id,
+                    ProposalStatus::ResultAnnouncement,
+                )
+                .map_err(|e| e.error)?;
+                Ok(())
+            })?;
+            Self::deposit_event(Event::<T>::Announcement(proposal_id, now));
+            Ok(().into())
+        }
+
+        /// The final result of the merged proposal
+        ///
+        /// Anyone can merge the results after the time is up
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
         pub fn merge_result(
             origin: OriginFor<T>,
             proposal_id: T::ProposalId,
         ) -> DispatchResultWithPostInfo {
-            let _ = ensure_root(origin)?;
+            let who = ensure_signed(origin)?;
+            Self::ensure_proposal_status(proposal_id, ProposalStatus::ResultAnnouncement)?;
+            let start = ProposalAnnouncement::<T>::get(proposal_id)
+                .ok_or(Error::<T>::ProposalAbnormalState)?;
+            let now = T::Time::now();
+            let interval = PublicityInterval::<T>::get().unwrap_or_else(Zero::zero);
+            ensure!(now - start > interval, Error::<T>::TimeNotUp);
             let result = with_transaction_result(|| Self::inner_merge_result(proposal_id))?;
-            Self::deposit_event(Event::<T>::MergeResult(proposal_id, result));
+            Self::deposit_event(Event::<T>::MergeResult(who, proposal_id, result));
             Ok(().into())
         }
 
+        /// Tag accounts that have pledged governance tokens
+        ///
+        /// Only the account that has been tagged can upload the results
+        ///
+        /// The dispatch origin for this call is `root`.
         #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
         pub fn tagging(origin: OriginFor<T>, account: T::AccountId) -> DispatchResultWithPostInfo {
             let _ = ensure_root(origin)?;
@@ -237,6 +429,10 @@ pub mod pallet {
             Self::deposit_event(Event::<T>::Tagging(account));
             Ok(().into())
         }
+
+        /// Delete the label, in some cases it is necessary to cancel the label of some accounts
+        ///
+        /// The dispatch origin for this call is `root`.
         #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
         pub fn untagging(
             origin: OriginFor<T>,
@@ -258,6 +454,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// Set the minimum stake amount
+        ///
+        /// The dispatch origin for this call is `root`.
         #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
         pub fn set_minimal_number(
             origin: OriginFor<T>,
@@ -268,28 +467,76 @@ pub mod pallet {
             Self::deposit_event(Event::<T>::SetMinimalNumber(number));
             Ok(().into())
         }
+
+        /// Set the publicity interval
+        ///
+        /// The dispatch origin for this call is `root`.
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        pub fn set_publicity_interval(
+            origin: OriginFor<T>,
+            interval: u32,
+        ) -> DispatchResultWithPostInfo {
+            let _ = ensure_root(origin)?;
+            PublicityInterval::<T>::set(Some(interval.into()));
+            Self::deposit_event(Event::<T>::SetPublicityInterval(interval));
+            Ok(().into())
+        }
     }
 }
 
 #[cfg(feature = "std")]
 impl<T: Config> GenesisConfig<T> {
+    /// Direct implementation of `GenesisBuild::build_storage`.
+    ///
+    /// Kept in order not to break dependency.
     pub fn build_storage(&self) -> Result<sp_runtime::Storage, String> {
         <Self as GenesisBuild<T>>::build_storage(self)
     }
 
+    /// Direct implementation of `GenesisBuild::assimilate_storage`.
+    ///
+    /// Kept in order not to break dependency.
     pub fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
         <Self as GenesisBuild<T>>::assimilate_storage(self, storage)
     }
 }
 
 impl<T: Config> Pallet<T> {
+    fn ensure_proposal_status(
+        proposal_id: T::ProposalId,
+        state: ProposalStatus,
+    ) -> Result<(), DispatchError> {
+        let old_state = ProposalPallet::<T>::proposal_status(proposal_id)
+            .ok_or(Error::<T>::ProposalIdNotExist)?;
+        ensure!(old_state == state, Error::<T>::ProposalAbnormalState);
+        Ok(())
+    }
+
     fn proposal_pairs(
         proposal_id: T::ProposalId,
-    ) -> Result<(CurrencyIdOf<T>, CurrencyIdOf<T>), DispatchError> {
-        match CouplePallet::<T>::pool_pairs(proposal_id) {
-            Some(pairs) => Ok(pairs),
-            None => Err(Error::<T>::ProposalIdNotExist)?,
-        }
+    ) -> Result<(CurrencyIdOf<T>, CurrencyIdOf<T>), Error<T>> {
+        CouplePallet::<T>::pool_pairs(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)
+    }
+
+    fn unstake_and_untagged(
+        who: &T::AccountId,
+    ) -> Result<(CurrencyIdOf<T>, BalanceOf<T>), DispatchError> {
+        let currency_id = T::StakeCurrencyId::get();
+        let number = StakedAccount::<T>::try_mutate_exists(
+            &who,
+            |option_num| -> Result<BalanceOf<T>, DispatchError> {
+                let num = option_num.ok_or(Error::<T>::AccountNotStaked)?;
+                *option_num = None;
+                Ok(num)
+            },
+        )?;
+        AutonomyAccount::<T>::try_mutate_exists(&who, |option| -> Result<(), DispatchError> {
+            if let Some(_) = option {
+                *option = None;
+            }
+            Ok(())
+        })?;
+        Ok((currency_id, number))
     }
 
     fn ensure_proposal_optional_id(
@@ -320,22 +567,13 @@ impl<T: Config> Pallet<T> {
     }
 
     fn inner_unstake(who: &T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
-        let currency_id = T::StakeCurrencyId::get();
-        let number = StakedAccount::<T>::try_mutate_exists(
-            &who,
-            |option_num| -> Result<BalanceOf<T>, DispatchError> {
-                let num = option_num.ok_or(Error::<T>::AccountNotStaked)?;
-                *option_num = None;
-                Ok(num)
-            },
-        )?;
-        AutonomyAccount::<T>::try_mutate_exists(&who, |option| -> Result<(), DispatchError> {
-            if let Some(_) = option {
-                *option = None;
-            }
-            Ok(())
-        })?;
+        let (currency_id, number) = Self::unstake_and_untagged(&who)?;
         T::Tokens::unreserve(currency_id, &who, number)
+    }
+
+    fn inner_slash(who: &T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
+        let (currency_id, number) = Self::unstake_and_untagged(&who)?;
+        T::Tokens::slash_reserved(currency_id, &who, number)
     }
 
     fn inner_upload_result(
@@ -377,7 +615,7 @@ impl<T: Config> Pallet<T> {
         let (id1, id2) = Self::proposal_pairs(proposal_id)?;
         let sum1 = StatisticalResults::<T>::get(proposal_id, id1).unwrap_or_else(Zero::zero);
         let sum2 = StatisticalResults::<T>::get(proposal_id, id2).unwrap_or_else(Zero::zero);
-        ensure!(sum1 != sum1, Error::<T>::ResultIsEqual);
+        ensure!(sum1 != sum2, Error::<T>::ResultIsEqual);
         let result = if sum1 > sum2 { id1 } else { id2 };
         CouplePallet::<T>::set_result(RawOrigin::Root.into(), proposal_id, result)
             .map_err(|e| e.error)?;
@@ -385,9 +623,15 @@ impl<T: Config> Pallet<T> {
     }
 }
 
+/// impl `ValidateUnsigned` trait with valudate unsigned transaction
 impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
     type Call = Call<T>;
 
+    /// Validate unsigned call to this module.
+    ///
+    /// By default unsigned transactions are disallowed, but implementing the validator
+    /// here we make sure that some particular calls (the ones produced by offchain worker)
+    /// are being whitelisted and marked as valid.
     fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
         let valid_tx = |provide| {
             ValidTransaction::with_tag_prefix("autonomy")

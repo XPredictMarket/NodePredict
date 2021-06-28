@@ -200,6 +200,7 @@ fn predict_genesis(
         }),
         autonomy: Some(AutonomyConfig {
             minimal_number: 10000 * 100000000,
+            interval: 2 * 24 * 60 * 60 * 1000, // 2 days
         }),
     }
 }
