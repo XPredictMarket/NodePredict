@@ -5,9 +5,9 @@
 //!
 //! A multi-asset management module
 //!
-//! - [`xpmrl_tokens::Config`](./trait.Config.html)
-//! - [`Call`](./enum.Call.html)
-//! - [`Module`](./struct.Module.html)
+//! - [`xpmrl_tokens::Config`](./pallet/trait.Config.html)
+//! - [`Call`](./pallet/enum.Call.html)
+//! - [`Pallet`](./pallet/struct.Pallet.html)
 //!
 //! ## Overview
 //!

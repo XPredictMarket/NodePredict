@@ -5,9 +5,9 @@
 //!
 //! A module dedicated to processing two option proposals
 //!
-//! - [`xpmrl_couple::Config`](./trait.Config.html)
-//! - [`Call`](./enum.Call.html)
-//! - [`Module`](./struct.Module.html)
+//! - [`xpmrl_couple::Config`](./palle/trait.Config.html)
+//! - [`Call`](./pallet/enum.Call.html)
+//! - [`Pallet`](./pallet/struct.Pallet.html)
 //!
 //! ## Overview
 //!

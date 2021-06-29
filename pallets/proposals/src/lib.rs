@@ -5,9 +5,9 @@
 //!
 //! General proposal entrypoint, a module that manages all versions of proposal information
 //!
-//! - [`xpmrl_proposals::Config`](./trait.Config.html)
-//! - [`Call`](./enum.Call.html)
-//! - [`Module`](./struct.Module.html)
+//! - [`xpmrl_proposals::Config`](./pallet/trait.Config.html)
+//! - [`Call`](./pallet/enum.Call.html)
+//! - [`Pallet`](./pallet/struct.Pallet.html)
 //!
 //! ## Overview
 //!

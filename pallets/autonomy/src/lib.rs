@@ -5,9 +5,9 @@
 //!
 //! A module allows ordinary users to govern the results of proposals
 //!
-//! - [`xpmrl_autonomy::Config`](./trait.Config.html)
-//! - [`Call`](./enum.Call.html)
-//! - [`Module`](./struct.Module.html)
+//! - [`xpmrl_autonomy::Config`](./pallet/trait.Config.html)
+//! - [`Call`](./pallet/enum.Call.html)
+//! - [`Pallet`](./pallet/struct.Pallet.html)
 //!
 //! ## Overview
 //!
