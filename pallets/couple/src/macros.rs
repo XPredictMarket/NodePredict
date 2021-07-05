@@ -18,7 +18,9 @@ macro_rules! proposal_total_market_try_mutate {
             let $old_amount = value.ok_or(Error::<T>::ProposalIdNotExist)?;
             let new_amount = $new_expr;
             *value = Some(new_amount);
-            Ok(new_amount.checked_sub(&$old_amount).unwrap_or_else(Zero::zero))
+            Ok(new_amount
+                .checked_sub(&$old_amount)
+                .unwrap_or_else(Zero::zero))
         })
     };
 }
@@ -33,7 +35,9 @@ macro_rules! proposal_account_info_try_mutate {
             &$who,
             |value| -> Result<BalanceOf<T>, DispatchError> {
                 let ($old_amount, new_amount) = value_changed!(value, $old_amount, $new_expr);
-                Ok(new_amount.checked_sub(&$old_amount).unwrap_or_else(Zero::zero))
+                Ok(new_amount
+                    .checked_sub(&$old_amount)
+                    .unwrap_or_else(Zero::zero))
             },
         )
     };

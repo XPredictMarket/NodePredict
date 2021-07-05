@@ -1,3 +1,20 @@
+//! <!-- markdown-link-check-disable -->
+//! # Couple
+//!
+//! Run `cargo doc --package xpmrl-tokens --open` to view this pallet's documentation.
+//!
+//! A multi-asset management module
+//!
+//! - [`xpmrl_tokens::Config`](./pallet/trait.Config.html)
+//! - [`Call`](./pallet/enum.Call.html)
+//! - [`Pallet`](./pallet/struct.Pallet.html)
+//!
+//! ## Overview
+//!
+//! This module can manage all on-chain assets in a unified manner, with operations such as
+//! additional issuance, transfer, destruction, and pledge.
+//!
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
@@ -34,6 +51,7 @@ pub mod pallet {
     use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, vec::Vec};
     use xpmrl_utils::with_transaction_result;
 
+    /// Basic attributes of the tokens
     #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, Default)]
     pub struct PRC20 {
         pub name: Vec<u8>,
@@ -55,11 +73,13 @@ pub mod pallet {
             + MaybeSerializeDeserialize
             + Debug
             + AtLeast32BitUnsigned;
+        /// Native asset operation interface
         type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
         #[pallet::constant]
         type NativeCurrencyId: Get<CurrencyIdOf<Self>>;
 
+        /// Similar to the contract address of ETH, here is used to manage treasury funds
         #[pallet::constant]
         type ModuleId: Get<ModuleId>;
     }
@@ -68,6 +88,7 @@ pub mod pallet {
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
+    /// Tokens id length, currently if a new token is created, it is the id of the new tokens
     #[pallet::storage]
     #[pallet::getter(fn current_currency_id)]
     pub type CurrentCurrencyId<T: Config> = StorageValue<_, T::CurrencyId>;
@@ -109,16 +130,19 @@ pub mod pallet {
         }
     }
 
+    /// store the basic attributes of all tokens.
     #[pallet::storage]
     #[pallet::getter(fn currencies)]
     pub type Currencies<T: Config> =
         StorageMap<_, Blake2_128Concat, T::CurrencyId, PRC20, OptionQuery>;
 
+    /// Total amount of tokens
     #[pallet::storage]
     #[pallet::getter(fn total_supply)]
     pub type TotalSupply<T: Config> =
         StorageMap<_, Blake2_128Concat, T::CurrencyId, BalanceOf<T>, OptionQuery>;
 
+    /// Available balance of the account
     #[pallet::storage]
     #[pallet::getter(fn free_balance_of)]
     pub type FreeBalanceOf<T: Config> = StorageDoubleMap<
@@ -131,6 +155,7 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// Account locked balance
     #[pallet::storage]
     #[pallet::getter(fn reserve_of)]
     pub type ReserveOf<T: Config> = StorageDoubleMap<
@@ -143,6 +168,7 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// The number of assets that the user authorizes to others to operate
     #[pallet::storage]
     #[pallet::getter(fn allowance)]
     pub type Allowance<T: Config> = StorageDoubleMap<
@@ -179,13 +205,11 @@ pub mod pallet {
         CurrencyIdOverflow,
         CurrencyIdNotExist,
         BalanceOverflow,
-        ZeroBalance,
         InsufficientBalance,
         TransferFromSelf,
         BurnFromSelf,
         ApproveSelf,
         OriginNotAllowed,
-        CannotBurnNativeAsset,
     }
 
     #[pallet::hooks]
@@ -193,6 +217,9 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
+        /// create new tokens
+        ///
+        /// The dispatch origin for this call is `root`.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 2))]
         pub fn new_asset(
             origin: OriginFor<T>,
@@ -206,6 +233,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// mint a tokens
+        ///
+        /// The dispatch origin for this call is `root`.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn mint(
             origin: OriginFor<T>,
@@ -220,6 +250,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// burn tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn burn(
             origin: OriginFor<T>,
@@ -233,6 +266,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// burn tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(6, 2))]
         pub fn burn_from(
             origin: OriginFor<T>,
@@ -260,6 +296,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// transfer tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(4, 2))]
         pub fn transfer(
             origin: OriginFor<T>,
@@ -276,6 +315,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// transfer tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(7, 3))]
         pub fn transfer_from(
             origin: OriginFor<T>,
@@ -311,6 +353,9 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// authorize tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
         pub fn approve(
             origin: OriginFor<T>,
@@ -692,7 +737,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    fn inner_balance_of(currency_id: T::CurrencyId, who: &T::AccountId) -> BalanceOf<T> {
+    fn inner_free_balance_of(currency_id: T::CurrencyId, who: &T::AccountId) -> BalanceOf<T> {
         if currency_id == T::NativeCurrencyId::get() {
             T::Currency::free_balance(&who)
         } else {
@@ -701,6 +746,7 @@ impl<T: Config> Pallet<T> {
     }
 }
 
+/// Implement the public token interface
 impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
     type CurrencyId = T::CurrencyId;
     type Balance = BalanceOf<T>;
@@ -718,7 +764,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
     }
 
     fn balance(currency_id: Self::CurrencyId, account: &T::AccountId) -> Self::Balance {
-        Self::inner_balance_of(currency_id, &account)
+        Self::inner_free_balance_of(currency_id, &account)
     }
 
     fn transfer(

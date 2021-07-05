@@ -1,7 +1,7 @@
 use hex_literal::hex;
 use predict_runtime::{
-    AccountId, AuraConfig, BalancesConfig, CrossConfig, GenesisConfig, GrandpaConfig,
-    ProposalsConfig, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
+    AccountId, AuraConfig, AutonomyConfig, BalancesConfig, CrossConfig, GenesisConfig,
+    GrandpaConfig, ProposalsConfig, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
 use serde_json::{map::Map, value::Value};
@@ -216,6 +216,10 @@ fn predict_genesis(
             expiration_time: 3 * 24 * 60 * 60 * 1000,
             liquidity_provider_fee_rate: 9000,
             minimum_interval_time: 60 * 1000,
+        }),
+        autonomy: Some(AutonomyConfig {
+            minimal_number: 10000 * 100000000,
+            interval: 2 * 24 * 60 * 60 * 1000, // 2 days
         }),
     }
 }

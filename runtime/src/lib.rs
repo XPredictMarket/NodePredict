@@ -41,6 +41,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
+pub use autonomy;
 pub use couple;
 pub use couple::pallet::Proposal;
 use cross;
@@ -296,6 +297,30 @@ impl couple::Config for Runtime {
 }
 
 parameter_types! {
+    pub const StakeCurrencyId: CurrencyId = 1;
+}
+
+impl autonomy::Config for Runtime {
+    type Event = Event;
+    type AuthorityId = autonomy::crypto::OcwAuthId;
+    type Call = Call;
+    type StakeCurrencyId = StakeCurrencyId;
+}
+
+impl frame_system::offchain::SigningTypes for Runtime {
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
+}
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
+    Call: From<C>,
+{
+    type OverarchingCall = Call;
+    type Extrinsic = UncheckedExtrinsic;
+}
+
+parameter_types! {
     pub const NativeCurrencyId: CurrencyId = 0;
     pub const TokensModuleId: ModuleId = ModuleId(*b"xptokens");
 }
@@ -352,6 +377,7 @@ construct_runtime!(
         Couple: couple::{Module, Call, Storage, Event<T>},
         Mining: mining::{Module, Call, Storage, Event<T>},
         Cross: cross::{Module, Call, Config<T>, Storage, Event<T>},
+        Autonomy: autonomy::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
         Tokens: tokens::{Module, Call, Config<T>, Storage, Event<T>},
     }
 );

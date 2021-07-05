@@ -117,11 +117,11 @@ fn test_burn() {
 #[test]
 fn test_transfer() {
     new_test_ext().execute_with(|| {
-        assert_eq!(TokensModule::inner_balance_of(0, &1), 100);
+        assert_eq!(TokensModule::inner_free_balance_of(0, &1), 100);
         assert_ok!(TokensModule::transfer(Origin::signed(1), 0, 3, 50));
-        assert_eq!(TokensModule::inner_balance_of(0, &3), 50);
+        assert_eq!(TokensModule::inner_free_balance_of(0, &3), 50);
         assert_ok!(TokensModule::transfer(Origin::signed(3), 0, 1, 50));
-        assert_eq!(TokensModule::inner_balance_of(0, &1), 100);
+        assert_eq!(TokensModule::inner_free_balance_of(0, &1), 100);
 
         let asset = PRC20 {
             name: "Tether USD".as_bytes().to_vec(),
@@ -149,8 +149,8 @@ fn test_transfer() {
             .iter()
             .any(|record| record.event == transfer_event));
 
-        assert_eq!(TokensModule::inner_balance_of(1, &1), 50);
-        assert_eq!(TokensModule::inner_balance_of(1, &2), 50);
+        assert_eq!(TokensModule::inner_free_balance_of(1, &1), 50);
+        assert_eq!(TokensModule::inner_free_balance_of(1, &2), 50);
         assert_eq!(TokensModule::total_supply(1), Some(100));
     });
 }
