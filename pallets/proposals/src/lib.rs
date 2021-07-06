@@ -144,7 +144,13 @@ pub mod pallet {
     /// is milliseconds
     #[pallet::storage]
     #[pallet::getter(fn proposal_minimum_interval_time)]
-    pub type ProposaMinimumIntervalTime<T: Config> = StorageValue<_, MomentOf<T>>;
+    pub type ProposalMinimumIntervalTime<T: Config> = StorageValue<_, MomentOf<T>>;
+
+    /// Time when the proposal enters the announcement
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_announcement_time)]
+    pub type ProposalAnnouncementTime<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::ProposalId, MomentOf<T>>;
 
     /// The percentage of the commission that the creator of the proposal can get.
     #[pallet::storage]
@@ -164,7 +170,7 @@ pub mod pallet {
             Self {
                 expiration_time: 3 * 24 * 60 * 60 * 1000,
                 liquidity_provider_fee_rate: 9000,
-                minimum_interval_time: 60 * 1000,
+                minimum_interval_time: 10 * 60 * 1000,
             }
         }
     }
@@ -174,7 +180,7 @@ pub mod pallet {
         fn build(&self) {
             ProposalAutomaticExpirationTime::<T>::set(Some(self.expiration_time.into()));
             ProposalLiquidityProviderFeeRate::<T>::set(Some(self.liquidity_provider_fee_rate));
-            ProposaMinimumIntervalTime::<T>::set(Some(self.minimum_interval_time.into()));
+            ProposalMinimumIntervalTime::<T>::set(Some(self.minimum_interval_time.into()));
         }
     }
 
@@ -191,6 +197,9 @@ pub mod pallet {
         /// The proposal id has reached the upper limit
         ProposalIdOverflow,
         ProposalIdNotExist,
+        /// The status of the current proposal is incorrect, and the current operation is not
+        /// supported.
+        ProposalAbnormalState,
         /// When setting the state, the new state cannot be the same as the old state
         StatusMustDiff,
         CategoryIdNotZero,
@@ -235,7 +244,7 @@ pub mod pallet {
             ensure!(category_id != Zero::zero(), Error::<T>::CategoryIdNotZero);
             ensure!(currency_id != Zero::zero(), Error::<T>::TokenIdNotZero);
             let minimum_interval_time =
-                ProposaMinimumIntervalTime::<T>::get().unwrap_or_else(Zero::zero);
+                ProposalMinimumIntervalTime::<T>::get().unwrap_or_else(Zero::zero);
             ensure!(
                 close_time - T::Time::now() > minimum_interval_time,
                 Error::<T>::CloseTimeMustLargeThanNow
@@ -275,8 +284,20 @@ pub mod pallet {
             new_status: Status,
         ) -> DispatchResultWithPostInfo {
             let _ = ensure_root(origin)?;
-            let status = with_transaction_result(|| Self::set_new_status(proposal_id, new_status))?;
-            Self::deposit_event(Event::ProposalStatusChanged(proposal_id, status));
+            let state =
+                ProposalStatus::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+            ensure!(
+                state == Status::OriginalPrediction,
+                Error::<T>::ProposalAbnormalState
+            );
+            if new_status != Status::End {
+                ensure!(
+                    new_status == Status::FormalPrediction,
+                    Error::<T>::ProposalAbnormalState
+                );
+            }
+            let state = with_transaction_result(|| Self::set_new_status(proposal_id, new_status))?;
+            Self::deposit_event(Event::ProposalStatusChanged(proposal_id, state));
             Ok(().into())
         }
     }
@@ -303,6 +324,7 @@ impl<T: Config> Pallet<T> {
                     Self::set_new_status(index, Status::End)?;
                 } else if state == Status::FormalPrediction {
                     Self::set_new_status(index, Status::WaitingForResults)?;
+                    ProposalAnnouncementTime::<T>::insert(index, now);
                 }
             }
             index = index
