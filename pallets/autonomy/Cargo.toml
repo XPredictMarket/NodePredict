@@ -21,8 +21,6 @@ sp-io = { version = "3.0.0", default-features = false }
 sp-runtime = { version = "3.0.0", default-features = false }
 xpmrl-traits = { version = "0.1.0", default-features = false, path = "../traits" }
 xpmrl-utils = { version = "0.1.0", default-features = false, path = "../utils" }
-xpmrl-proposals = { version = "0.1.0", default-features = false, path = "../proposals" }
-xpmrl-couple = { version = "0.1.0", default-features = false, path = "../couple" }
 
 [dev-dependencies]
 pallet-balances = { version = "3.0.0" }
@@ -41,6 +39,4 @@ std = [
 	"sp-runtime/std",
 	"xpmrl-traits/std",
 	"xpmrl-utils/std",
-	"xpmrl-proposals/std",
-	"xpmrl-couple/std",
 ]

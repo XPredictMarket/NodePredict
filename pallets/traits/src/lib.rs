@@ -8,7 +8,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod couple;
 pub mod pool;
+pub mod system;
 pub mod tokens;
 
 use codec::{Decode, Encode};

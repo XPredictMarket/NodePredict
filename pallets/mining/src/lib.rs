@@ -11,8 +11,7 @@ mod tests;
 use frame_support::{dispatch::DispatchError, ensure, traits::Get};
 use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedDiv, CheckedSub, Zero};
 use sp_std::{mem, vec::Vec};
-use xpmrl_couple::Pallet as CouplePallet;
-use xpmrl_traits::tokens::Tokens;
+use xpmrl_traits::{couple::LiquidityCouple, tokens::Tokens};
 use xpmrl_utils::storage_try_mutate;
 
 #[frame_support::pallet]
@@ -21,15 +20,15 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use sp_runtime::{traits::*, ModuleId};
     use sp_std::vec::Vec;
-    use xpmrl_traits::tokens::Tokens;
+    use xpmrl_traits::{couple::LiquidityCouple, system::ProposalSystem, tokens::Tokens};
     use xpmrl_utils::with_transaction_result;
 
-    pub(crate) type BalanceOf<T> = <<T as xpmrl_couple::Config>::Tokens as Tokens<
-        <T as frame_system::Config>::AccountId,
-    >>::Balance;
-    pub(crate) type CurrencyIdOf<T> = <<T as xpmrl_couple::Config>::Tokens as Tokens<
-        <T as frame_system::Config>::AccountId,
-    >>::CurrencyId;
+    pub(crate) type TokensOf<T> =
+        <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
+    pub(crate) type CurrencyIdOf<T> =
+        <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::CurrencyId;
+    pub(crate) type BalanceOf<T> =
+        <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, Default)]
     pub struct Point<BlockNumber, Balance> {
@@ -45,9 +44,12 @@ pub mod pallet {
     }
 
     #[pallet::config]
-    #[pallet::disable_frame_system_supertrait_check]
-    pub trait Config: xpmrl_couple::Config {
+    pub trait Config:
+        frame_system::Config + ProposalSystem<<Self as frame_system::Config>::AccountId>
+    {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+        type CouplePool: LiquidityCouple<Self>;
 
         #[pallet::constant]
         type ModuleId: Get<ModuleId>;
@@ -130,7 +132,6 @@ pub mod pallet {
         BalanceOverflow,
         InsufficientBalance,
         AccountNotStake,
-        ProposalNotExist,
         ProposalNotMined,
         ProposalIsMined,
         FromMustMoreThanNow,
@@ -258,7 +259,7 @@ pub mod pallet {
             let now = Self::block_number();
             ensure!(from > now, Error::<T>::FromMustMoreThanNow);
             ensure!(to > from, Error::<T>::ToMustMoreThanFrom);
-            let _ = Self::currency_id(proposal_id)?;
+            let _ = T::CouplePool::proposal_liquidate_currency_id(proposal_id)?;
             ProposalMineInfo::<T>::try_mutate(
                 proposal_id,
                 |option_mine_info| -> Result<(), DispatchError> {
@@ -329,18 +330,13 @@ impl<T: Config> Pallet<T> {
         frame_system::Module::<T>::block_number()
     }
 
-    fn currency_id(proposal_id: T::ProposalId) -> Result<CurrencyIdOf<T>, Error<T>> {
-        CouplePallet::<T>::proposal_liquidate_currency_id(proposal_id)
-            .ok_or(Error::<T>::ProposalNotExist)
-    }
-
     fn inner_stake(
         who: &T::AccountId,
         proposal_id: T::ProposalId,
         number: BalanceOf<T>,
     ) -> Result<(T::BlockNumber, BalanceOf<T>), DispatchError> {
         let now = Self::block_number();
-        let currency_id = Self::currency_id(proposal_id)?;
+        let currency_id = T::CouplePool::proposal_liquidate_currency_id(proposal_id)?;
         account_checkpoint_try_mutate!(
             who,
             proposal_id,
@@ -376,7 +372,7 @@ impl<T: Config> Pallet<T> {
         number: BalanceOf<T>,
     ) -> Result<(T::BlockNumber, BalanceOf<T>), DispatchError> {
         let now = Self::block_number();
-        let currency_id = Self::currency_id(proposal_id)?;
+        let currency_id = T::CouplePool::proposal_liquidate_currency_id(proposal_id)?;
         ensure!(
             AccountCheckpoint::<T>::contains_key(&who, proposal_id),
             Error::<T>::AccountNotStake
