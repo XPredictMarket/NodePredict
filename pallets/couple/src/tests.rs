@@ -3,6 +3,7 @@ use std::time::SystemTime;
 use crate::pallet::Proposal;
 use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok};
+use xpmrl_traits::pool::LiquidityPool;
 use xpmrl_traits::ProposalStatus;
 
 fn befor_test() -> u128 {
@@ -18,7 +19,7 @@ fn befor_test() -> u128 {
     let currency_id: u32 = 1;
     let fee_rate: u32 = 2000;
     let number = 100000;
-    assert_ok!(XPMRLProposals::new_proposal(
+    assert_ok!(CoupleModule::new_proposal(
         Origin::signed(1),
         proposal.title.clone(),
         [
@@ -65,8 +66,7 @@ fn test_add_liquidity() {
             CoupleModule::add_liquidity(Origin::signed(2), 0, next_number),
             Error::<Test>::ProposalAbnormalState
         );
-        assert_ok!(XPMRLProposals::set_status(
-            Origin::root(),
+        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
             0,
             ProposalStatus::FormalPrediction
         ));
@@ -145,8 +145,7 @@ fn test_buy() {
             CoupleModule::buy(Origin::signed(2), 1, 3, 31250),
             Error::<Test>::ProposalIdNotExist
         );
-        assert_ok!(XPMRLProposals::set_status(
-            Origin::root(),
+        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
             0,
             ProposalStatus::FormalPrediction
         ));
@@ -183,8 +182,7 @@ fn test_sell() {
             CoupleModule::sell(Origin::signed(2), 1, 3, 255),
             Error::<Test>::ProposalIdNotExist
         );
-        assert_ok!(XPMRLProposals::set_status(
-            Origin::root(),
+        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
             0,
             ProposalStatus::FormalPrediction
         ));

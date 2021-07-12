@@ -3,6 +3,7 @@ use predict_runtime::{
     ProposalsConfig, Signature, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
+use serde_json::{map::Map, value::Value};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::Ss58Codec, sr25519, Pair, Public};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
@@ -44,6 +45,13 @@ pub fn authority_keys_from_seed(s: &str) -> (AuraId, GrandpaId) {
     (get_from_seed::<AuraId>(s), get_from_seed::<GrandpaId>(s))
 }
 
+pub fn properties() -> Option<Map<String, Value>> {
+    let mut properties = Map::new();
+    properties.insert("tokenSymbol".into(), vec!["PGAS"].into());
+    properties.insert("tokenDecimals".into(), vec![12].into());
+    Some(properties)
+}
+
 pub fn development_config() -> Result<ChainSpec, String> {
     let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 
@@ -71,7 +79,11 @@ pub fn development_config() -> Result<ChainSpec, String> {
                     get_account_id_from_address("5CqffqfKmUmi9hBEsM8PVkAkw8PUYtjMPi1zrbrgsKa9u5Ui"),
                 ],
                 true,
-                vec![("Test Coin", "TestC", 8)],
+                vec![
+                    ("P POT", "PPOT", 8),
+                    ("Test Coin", "TestC", 8),
+                    ("P Ethereum", "PETH", 18),
+                ],
                 vec![
                     (
                         get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -109,8 +121,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
         // Protocol ID
         None,
         // Properties
-        None,
-        // Extensions
+        properties(),
         None,
     ))
 }
@@ -153,7 +164,11 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
                     get_account_id_from_address("5CqffqfKmUmi9hBEsM8PVkAkw8PUYtjMPi1zrbrgsKa9u5Ui"),
                 ],
                 true,
-                vec![("Test Coin", "TestC", 8)],
+                vec![
+                    ("P POT", "PPOT", 8),
+                    ("Test Coin", "TestC", 8),
+                    ("P Ethereum", "PETH", 18),
+                ],
                 vec![
                     (
                         get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -191,7 +206,7 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
         // Protocol ID
         None,
         // Properties
-        None,
+        properties(),
         // Extensions
         None,
     ))

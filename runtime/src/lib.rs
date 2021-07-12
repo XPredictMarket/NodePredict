@@ -48,7 +48,7 @@ pub use couple::pallet::Proposal;
 pub use proposals;
 use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
 pub use tokens;
-use traits::ProposalStatus;
+use traits::{system::ProposalSystem, ProposalStatus};
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -104,7 +104,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("node-predict"),
     impl_name: create_runtime_str!("node-predict"),
     authoring_version: 1,
-    spec_version: 1,
+    spec_version: 3,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -273,25 +273,33 @@ pub type VersionId = u32;
 pub type CategoryId = u32;
 const FEE_DECIMALS: u8 = 4;
 
+impl ProposalSystem<AccountId> for Runtime {
+    type ProposalId = ProposalId;
+    type CategoryId = CategoryId;
+    type Tokens = Tokens;
+    type Time = Timestamp;
+    type VersionId = VersionId;
+}
+
 parameter_types! {
     pub const EarnTradingFeeDecimals: u8 = FEE_DECIMALS;
-    pub const CurrentLiquidateVersionId: VersionId = 1;
 }
 
 impl proposals::Config for Runtime {
     type Event = Event;
-    type Time = Timestamp;
-    type ProposalId = ProposalId;
-    type CategoryId = CategoryId;
-    type VersionId = VersionId;
+    type SubPool = Couple;
+    type CouplePool = Couple;
     type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
-    type LiquidityPool = Couple;
-    type CurrentLiquidateVersionId = CurrentLiquidateVersionId;
+}
+
+parameter_types! {
+    pub const CurrentLiquidateVersionId: VersionId = 1;
 }
 
 impl couple::Config for Runtime {
     type Event = Event;
-    type Tokens = Tokens;
+    type Pool = Proposals;
+    type CurrentLiquidateVersionId = CurrentLiquidateVersionId;
 }
 
 parameter_types! {
@@ -300,9 +308,11 @@ parameter_types! {
 
 impl autonomy::Config for Runtime {
     type Event = Event;
-    type AuthorityId = autonomy::crypto::OcwAuthId;
     type Call = Call;
+    type AuthorityId = autonomy::crypto::OcwAuthId;
     type StakeCurrencyId = StakeCurrencyId;
+    type Pool = Proposals;
+    type CouplePool = Couple;
 }
 
 impl frame_system::offchain::SigningTypes for Runtime {

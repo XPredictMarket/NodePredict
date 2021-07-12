@@ -4,6 +4,7 @@ use predict_runtime::{
     ProposalsConfig, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
 };
 use sc_service::ChainType;
+use serde_json::{map::Map, value::Value};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::crypto::{Ss58Codec, UncheckedInto};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
@@ -16,6 +17,13 @@ pub fn get_account_id_from_address(address: &str) -> AccountId {
     } else {
         Default::default()
     }
+}
+
+pub fn properties() -> Option<Map<String, Value>> {
+    let mut properties = Map::new();
+    properties.insert("tokenSymbol".into(), vec!["PGAS"].into());
+    properties.insert("tokenDecimals".into(), vec![12].into());
+    Some(properties)
 }
 
 pub fn mainnet_test_config() -> Result<ChainSpec, String> {
@@ -55,7 +63,11 @@ pub fn mainnet_test_config() -> Result<ChainSpec, String> {
                     hex!["ec548f5f534d715555648d2ca7d56a22be9c13b13f1678586bc8932189788656"].into(),
                 ],
                 true,
-                vec![("Test Coin", "TestC", 8)],
+                vec![
+                    ("P POT", "PPOT", 8),
+                    ("Test Coin", "TestC", 8),
+                    ("P Ethereum", "PETH", 18),
+                ],
                 vec![
                     (
                         get_account_id_from_address(
@@ -85,7 +97,7 @@ pub fn mainnet_test_config() -> Result<ChainSpec, String> {
         // Protocol ID
         None,
         // Properties
-        None,
+        properties(),
         // Extensions
         None,
     ))
@@ -125,7 +137,11 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
                     hex!["ec548f5f534d715555648d2ca7d56a22be9c13b13f1678586bc8932189788656"].into(),
                 ],
                 true,
-                vec![],
+                vec![
+                    ("P POT", "PPOT", 8),
+                    ("Test Coin", "TestC", 8),
+                    ("P Ethereum", "PETH", 18),
+                ],
                 vec![],
             )
         },
@@ -137,8 +153,7 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
         // Protocol ID
         None,
         // Properties
-        None,
-        // Extensions
+        properties(),
         None,
     ))
 }

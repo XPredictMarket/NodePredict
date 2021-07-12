@@ -253,7 +253,7 @@ fn test_transfer_from() {
             Error::<Test>::OriginNotAllowed
         );
         assert_ok!(TokensModule::transfer_from(Origin::signed(2), 1, 1, 2, 100));
-        let transfer_event = Event::tokens(crate::Event::Transfer(1, 1, 2, 100));
+        let transfer_event = Event::tokens(crate::Event::TransferFrom(1, 2, 1, 2, 100));
         assert!(System::events()
             .iter()
             .any(|record| record.event == transfer_event));

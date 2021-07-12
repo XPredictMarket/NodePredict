@@ -26,7 +26,7 @@ use frame_support::{
     ensure,
     traits::{Get, Time},
 };
-use frame_system::{offchain::SignedPayload, RawOrigin};
+use frame_system::offchain::SignedPayload;
 use sp_core::crypto::KeyTypeId;
 use sp_runtime::{
     traits::{CheckedAdd, One, Zero},
@@ -34,9 +34,7 @@ use sp_runtime::{
         InvalidTransaction, TransactionSource, TransactionValidity, ValidTransaction,
     },
 };
-use xpmrl_couple::Pallet as CouplePallet;
-use xpmrl_proposals::Pallet as ProposalPallet;
-use xpmrl_traits::{tokens::Tokens, ProposalStatus};
+use xpmrl_traits::{couple::LiquidityCouple, pool::LiquidityPool, tokens::Tokens, ProposalStatus};
 use xpmrl_utils::with_transaction_result;
 
 /// Defines application identifier for crypto keys of this module.
@@ -88,16 +86,22 @@ pub mod pallet {
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
     use frame_system::{offchain::*, pallet_prelude::*};
     use sp_runtime::traits::*;
-    use xpmrl_traits::{tokens::Tokens, ProposalStatus};
+    use xpmrl_traits::{
+        couple::LiquidityCouple, pool::LiquidityPool, system::ProposalSystem, tokens::Tokens,
+        ProposalStatus,
+    };
     use xpmrl_utils::with_transaction_result;
 
-    pub(crate) type BalanceOf<T> = <<T as xpmrl_couple::Config>::Tokens as Tokens<
-        <T as frame_system::Config>::AccountId,
-    >>::Balance;
-    pub(crate) type MomentOf<T> = <<T as xpmrl_proposals::Config>::Time as Time>::Moment;
-    pub(crate) type CurrencyIdOf<T> = <<T as xpmrl_couple::Config>::Tokens as Tokens<
-        <T as frame_system::Config>::AccountId,
-    >>::CurrencyId;
+    pub(crate) type TokensOf<T> =
+        <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
+    pub(crate) type CurrencyIdOf<T> =
+        <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::CurrencyId;
+    pub(crate) type BalanceOf<T> =
+        <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::Balance;
+    pub(crate) type ProposalIdOf<T> =
+        <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
+    pub(crate) type TimeOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Time;
+    pub(crate) type MomentOf<T> = <TimeOf<T> as Time>::Moment;
 
     /// The payload struct of unsigned transaction with signed payload
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -121,14 +125,19 @@ pub mod pallet {
 
     /// This is the pallet's configuration trait
     #[pallet::config]
-    #[pallet::disable_frame_system_supertrait_check]
-    pub trait Config: xpmrl_couple::Config + SigningTypes {
+    pub trait Config:
+        frame_system::Config
+        + SigningTypes
+        + ProposalSystem<<Self as frame_system::Config>::AccountId>
+    {
         /// The overarching event type.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
         /// The overarching dispatch call type.
         type Call: From<Call<Self>>;
         /// The identifier type for an offchain worker.
         type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
+        type Pool: LiquidityPool<Self>;
+        type CouplePool: LiquidityCouple<Self>;
 
         /// The asset id of the governance token
         ///
@@ -248,22 +257,16 @@ pub mod pallet {
         Overflow,
         /// Proposal is not at the wait for result, unable to upload results
         ProposalAbnormalState,
-        /// The proposal does not exist or is not set to mining
-        ProposalIdNotExist,
         /// Incorrect proposal options
         ProposalOptionNotCorrect,
         ProposalIdOverflow,
         /// The final count of all the options of the proposal is equal, and the final result
         /// cannot be obtained
         ResultIsEqual,
-        /// The result has been publicized and cannot be publicized again
-        ResultHasBeenAnnounced,
         /// The account has been tagged and cannot be tagged again
         AccountHasTagged,
         /// The account has not been tagged yet
         AccountNotTagged,
-        /// The merger time has not arrived, and there is a two-day publicity period
-        TimeNotUp,
     }
 
     #[pallet::hooks]
@@ -451,9 +454,9 @@ impl<T: Config> GenesisConfig<T> {
 
 impl<T: Config> Pallet<T> {
     pub fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
-        let max_id = ProposalPallet::<T>::current_proposal_id().unwrap_or_else(Zero::zero);
-        let mut index: <T as xpmrl_proposals::Config>::ProposalId = Zero::zero();
-        let now = T::Time::now();
+        let max_id = T::Pool::max_proposal_id();
+        let mut index: ProposalIdOf<T> = Zero::zero();
+        let now = <TimeOf<T> as Time>::now();
         let interval = PublicityInterval::<T>::get().unwrap_or_else(Zero::zero);
         loop {
             if index >= max_id {
@@ -470,14 +473,12 @@ impl<T: Config> Pallet<T> {
     }
 
     fn change_state(
-        index: <T as xpmrl_proposals::Config>::ProposalId,
+        index: ProposalIdOf<T>,
         interval: MomentOf<T>,
         now: MomentOf<T>,
     ) -> Result<(), DispatchError> {
-        let state =
-            ProposalPallet::<T>::proposal_status(index).ok_or(Error::<T>::ProposalIdNotExist)?;
-        let time = ProposalPallet::<T>::proposal_announcement_time(index)
-            .ok_or(Error::<T>::ProposalIdNotExist)?;
+        let state = T::Pool::get_proposal_state(index)?;
+        let time = T::CouplePool::proposal_announcement_time(index)?;
         if let Some(val) = ProposalAnnouncement::<T>::get(index) {
             ensure!(
                 state == ProposalStatus::ResultAnnouncement,
@@ -492,12 +493,12 @@ impl<T: Config> Pallet<T> {
                 Error::<T>::ProposalAbnormalState
             );
             if now - time > interval {
-                let (id1, id2) = Self::proposal_pairs(index)?;
+                let (id1, id2) = T::CouplePool::proposal_pair(index)?;
                 let sum1 = StatisticalResults::<T>::get(index, id1).unwrap_or_else(Zero::zero);
                 let sum2 = StatisticalResults::<T>::get(index, id2).unwrap_or_else(Zero::zero);
                 ensure!(sum1 != sum2, Error::<T>::ResultIsEqual);
                 ProposalAnnouncement::<T>::insert(index, now);
-                ProposalPallet::<T>::set_new_status(index, ProposalStatus::ResultAnnouncement)?;
+                T::Pool::set_proposal_state(index, ProposalStatus::ResultAnnouncement)?;
             }
         }
         Ok(())
@@ -507,16 +508,9 @@ impl<T: Config> Pallet<T> {
         proposal_id: T::ProposalId,
         state: ProposalStatus,
     ) -> Result<(), DispatchError> {
-        let old_state = ProposalPallet::<T>::proposal_status(proposal_id)
-            .ok_or(Error::<T>::ProposalIdNotExist)?;
+        let old_state = T::Pool::get_proposal_state(proposal_id)?;
         ensure!(old_state == state, Error::<T>::ProposalAbnormalState);
         Ok(())
-    }
-
-    fn proposal_pairs(
-        proposal_id: T::ProposalId,
-    ) -> Result<(CurrencyIdOf<T>, CurrencyIdOf<T>), Error<T>> {
-        CouplePallet::<T>::pool_pairs(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)
     }
 
     fn unstake_and_untagged(
@@ -544,7 +538,7 @@ impl<T: Config> Pallet<T> {
         proposal_id: T::ProposalId,
         result: CurrencyIdOf<T>,
     ) -> Result<(), DispatchError> {
-        let (id1, id2) = Self::proposal_pairs(proposal_id)?;
+        let (id1, id2) = T::CouplePool::proposal_pair(proposal_id)?;
         ensure!(
             result == id1 || result == id2,
             Error::<T>::ProposalOptionNotCorrect
@@ -613,13 +607,12 @@ impl<T: Config> Pallet<T> {
     }
 
     fn inner_merge_result(proposal_id: T::ProposalId) -> Result<CurrencyIdOf<T>, DispatchError> {
-        let (id1, id2) = Self::proposal_pairs(proposal_id)?;
+        let (id1, id2) = T::CouplePool::proposal_pair(proposal_id)?;
         let sum1 = StatisticalResults::<T>::get(proposal_id, id1).unwrap_or_else(Zero::zero);
         let sum2 = StatisticalResults::<T>::get(proposal_id, id2).unwrap_or_else(Zero::zero);
         ensure!(sum1 != sum2, Error::<T>::ResultIsEqual);
         let result = if sum1 > sum2 { id1 } else { id2 };
-        CouplePallet::<T>::set_result(RawOrigin::Root.into(), proposal_id, result)
-            .map_err(|e| e.error)?;
+        T::CouplePool::set_proposal_result(proposal_id, result)?;
         Ok(result)
     }
 }

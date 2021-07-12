@@ -25,8 +25,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "std")]
-use frame_support::traits::GenesisBuild;
 use frame_support::{
     dispatch::DispatchError,
     ensure,
@@ -36,6 +34,9 @@ use frame_support::{
 use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedSub, One, Zero};
 use sp_std::vec::Vec;
 use xpmrl_traits::tokens::Tokens;
+
+#[cfg(feature = "std")]
+use frame_support::traits::GenesisBuild;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -189,6 +190,13 @@ pub mod pallet {
         Burn(T::CurrencyId, T::AccountId, BalanceOf<T>),
         BurnFrom(T::CurrencyId, T::AccountId, T::AccountId, BalanceOf<T>),
         Transfer(T::CurrencyId, T::AccountId, T::AccountId, BalanceOf<T>),
+        TransferFrom(
+            T::CurrencyId,
+            T::AccountId,
+            T::AccountId,
+            T::AccountId,
+            BalanceOf<T>,
+        ),
         Approval(T::CurrencyId, T::AccountId, T::AccountId, BalanceOf<T>),
     }
 
@@ -276,7 +284,7 @@ pub mod pallet {
             ensure!(allow >= number, Error::<T>::OriginNotAllowed);
             let actual_number = with_transaction_result(|| {
                 let actual_number = Self::inner_burn_from(currency_id, &from, number)?;
-                Self::set_approve(
+                Self::inner_approve(
                     currency_id,
                     &from,
                     &who,
@@ -284,7 +292,7 @@ pub mod pallet {
                 )?;
                 Ok(actual_number)
             })?;
-            Self::deposit_event(Event::Burn(currency_id, from, actual_number));
+            Self::deposit_event(Event::BurnFrom(currency_id, who, from, actual_number));
             Ok(().into())
         }
 
@@ -327,7 +335,7 @@ pub mod pallet {
             ensure!(allow >= number, Error::<T>::OriginNotAllowed);
             let actual_number = with_transaction_result(|| {
                 let actual_number = Self::inner_transfer_from(currency_id, &from, &to, number)?;
-                Self::set_approve(
+                Self::inner_approve(
                     currency_id,
                     &from,
                     &who,
@@ -335,7 +343,13 @@ pub mod pallet {
                 )?;
                 Ok(actual_number)
             })?;
-            Self::deposit_event(Event::Transfer(currency_id, from, to, actual_number));
+            Self::deposit_event(Event::TransferFrom(
+                currency_id,
+                who,
+                from,
+                to,
+                actual_number,
+            ));
             Ok(().into())
         }
 
@@ -350,7 +364,24 @@ pub mod pallet {
             number: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
-            let acutal_number = Self::set_approve(currency_id, &who, &spender, number)?;
+            let acutal_number = with_transaction_result(|| {
+                Self::inner_approve(currency_id, &who, &spender, number)
+            })?;
+            Self::deposit_event(Event::Approval(currency_id, who, spender, acutal_number));
+            Ok(().into())
+        }
+
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(2, 1))]
+        pub fn add_approve(
+            origin: OriginFor<T>,
+            currency_id: T::CurrencyId,
+            spender: T::AccountId,
+            number: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let acutal_number = with_transaction_result(|| {
+                Self::inner_add_approve(currency_id, &who, &spender, number)
+            })?;
             Self::deposit_event(Event::Approval(currency_id, who, spender, acutal_number));
             Ok(().into())
         }
@@ -369,7 +400,7 @@ impl<T: Config> GenesisConfig<T> {
 }
 
 impl<T: Config> Pallet<T> {
-    pub fn get_next_currency_id() -> Result<T::CurrencyId, DispatchError> {
+    fn get_next_currency_id() -> Result<T::CurrencyId, DispatchError> {
         CurrentCurrencyId::<T>::try_mutate(|value| -> Result<T::CurrencyId, DispatchError> {
             let mut currency_id = value.unwrap_or_else(Zero::zero);
             if currency_id == T::NativeCurrencyId::get() {
@@ -386,7 +417,7 @@ impl<T: Config> Pallet<T> {
         })
     }
 
-    pub fn ensure_currency_id(currency_id: T::CurrencyId) -> Result<(), DispatchError> {
+    fn ensure_currency_id(currency_id: T::CurrencyId) -> Result<(), DispatchError> {
         if currency_id != T::NativeCurrencyId::get() {
             ensure!(
                 Currencies::<T>::contains_key(currency_id),
@@ -396,12 +427,12 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub fn inner_decimals(currency_id: T::CurrencyId) -> Result<u8, DispatchError> {
+    fn inner_decimals(currency_id: T::CurrencyId) -> Result<u8, DispatchError> {
         let xrc = Currencies::<T>::get(currency_id).ok_or(Error::<T>::CurrencyIdNotExist)?;
         Ok(xrc.decimals)
     }
 
-    pub fn inner_new_asset(
+    fn inner_new_asset(
         name: Vec<u8>,
         symbol: Vec<u8>,
         decimals: u8,
@@ -416,7 +447,7 @@ impl<T: Config> Pallet<T> {
         Ok(currency_id)
     }
 
-    pub fn inner_mint_to(
+    fn inner_mint_to(
         currency_id: T::CurrencyId,
         to: &T::AccountId,
         number: BalanceOf<T>,
@@ -459,7 +490,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub fn inner_burn_from(
+    fn inner_burn_from(
         currency_id: T::CurrencyId,
         from: &T::AccountId,
         number: BalanceOf<T>,
@@ -498,7 +529,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub fn inner_transfer_from(
+    fn inner_transfer_from(
         currency_id: T::CurrencyId,
         from: &T::AccountId,
         to: &T::AccountId,
@@ -543,7 +574,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub fn set_approve(
+    fn inner_approve(
         currency_id: T::CurrencyId,
         owner: &T::AccountId,
         spender: &T::AccountId,
@@ -563,7 +594,34 @@ impl<T: Config> Pallet<T> {
         )
     }
 
-    pub fn inner_reserve(
+    fn inner_add_approve(
+        currency_id: T::CurrencyId,
+        owner: &T::AccountId,
+        spender: &T::AccountId,
+        number: BalanceOf<T>,
+    ) -> Result<BalanceOf<T>, DispatchError> {
+        Self::ensure_currency_id(currency_id)?;
+        ensure!(owner != spender, Error::<T>::ApproveSelf);
+        Allowance::<T>::try_mutate(
+            owner,
+            currency_id,
+            |items| -> Result<BalanceOf<T>, DispatchError> {
+                let mut new_items = items.clone().unwrap_or_default();
+                let number = {
+                    if let Some(x) = new_items.get(&spender) {
+                        x.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?
+                    } else {
+                        number
+                    }
+                };
+                new_items.insert(spender.clone(), number);
+                *items = Some(new_items);
+                Ok(number)
+            },
+        )
+    }
+
+    fn inner_reserve(
         currency_id: T::CurrencyId,
         from: &T::AccountId,
         number: BalanceOf<T>,
@@ -639,7 +697,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub fn inner_unreserve(
+    fn inner_unreserve(
         currency_id: T::CurrencyId,
         from: &T::AccountId,
         number: BalanceOf<T>,
@@ -679,11 +737,11 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub fn inner_free_balance_of(currency_id: T::CurrencyId, who: &T::AccountId) -> BalanceOf<T> {
+    fn inner_free_balance_of(currency_id: T::CurrencyId, who: &T::AccountId) -> BalanceOf<T> {
         if currency_id == T::NativeCurrencyId::get() {
             T::Currency::free_balance(&who)
         } else {
-            Self::free_balance_of(&who, currency_id).unwrap_or_else(Zero::zero)
+            FreeBalanceOf::<T>::get(&who, currency_id).unwrap_or_else(Zero::zero)
         }
     }
 }
