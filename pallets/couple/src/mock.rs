@@ -1,5 +1,9 @@
 use crate::{self as couple, Error};
-use frame_support::{dispatch::DispatchError, parameter_types, traits::Time};
+use frame_support::{
+    dispatch::DispatchError,
+    parameter_types,
+    traits::{Hooks, Time},
+};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
@@ -11,20 +15,20 @@ use xpmrl_traits::{pool::LiquidityPool, system::ProposalSystem, tokens::Tokens, 
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
-type AccountId = u64;
+pub type AccountId = u64;
 type Balance = u128;
+pub type BlockNumber = u64;
 
 thread_local! {
-    static TIME: RefCell<u32> = RefCell::new(0);
     static PROPOSALS_WRAPPER: RefCell<ProposalsWrapper> = RefCell::new(ProposalsWrapper::new());
 }
 
 pub struct Timestamp;
 impl Time for Timestamp {
-    type Moment = u32;
+    type Moment = u64;
 
     fn now() -> Self::Moment {
-        TIME.with(|v| *v.borrow())
+        System::block_number()
     }
 }
 
@@ -54,7 +58,7 @@ impl frame_system::Config for Test {
     type Origin = Origin;
     type Call = Call;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
@@ -100,17 +104,21 @@ impl xpmrl_tokens::Config for Test {
     type ModuleId = TokensModuleId;
 }
 
-type TokensOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
-type CurrencyIdOf<T> = <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::CurrencyId;
+pub type TokensOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
+pub type CurrencyIdOf<T> =
+    <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::CurrencyId;
+pub type BalanceOf<T> = <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::Balance;
 
-type TimeOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Time;
-type MomentOf<T> = <TimeOf<T> as Time>::Moment;
+pub type TimeOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Time;
+pub type MomentOf<T> = <TimeOf<T> as Time>::Moment;
 
-type ProposalIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
+pub type ProposalIdOf<T> =
+    <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
 type VersionIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::VersionId;
 
 pub struct ProposalsWrapper {
     pub next_proposal_id: ProposalIdOf<Test>,
+    pub interval_time: MomentOf<Test>,
     pub used_currency_id: HashMap<CurrencyIdOf<Test>, ()>,
     pub proposal_state: HashMap<ProposalIdOf<Test>, ProposalStatus>,
     pub proposal_owner: HashMap<ProposalIdOf<Test>, AccountId>,
@@ -120,6 +128,7 @@ impl ProposalsWrapper {
     fn new() -> ProposalsWrapper {
         ProposalsWrapper {
             next_proposal_id: 0,
+            interval_time: 5,
             used_currency_id: HashMap::<CurrencyIdOf<Test>, ()>::new(),
             proposal_state: HashMap::<ProposalIdOf<Test>, ProposalStatus>::new(),
             proposal_owner: HashMap::<ProposalIdOf<Test>, AccountId>::new(),
@@ -128,9 +137,16 @@ impl ProposalsWrapper {
 }
 
 pub struct Proposals;
+
+impl Proposals {
+    pub fn set_proposal_minimum_interval_time(t: MomentOf<Test>) {
+        PROPOSALS_WRAPPER.with(|wrapper| -> () { wrapper.borrow_mut().interval_time = t })
+    }
+}
+
 impl LiquidityPool<Test> for Proposals {
-    fn get_proposa_minimum_interval_time() -> MomentOf<Test> {
-        0
+    fn get_proposal_minimum_interval_time() -> MomentOf<Test> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> MomentOf<Test> { wrapper.borrow().interval_time })
     }
 
     fn is_currency_id_used(currency_id: CurrencyIdOf<Test>) -> bool {
@@ -246,6 +262,16 @@ impl couple::Config for Test {
     type Event = Event;
     type Pool = Proposals;
     type CurrentLiquidateVersionId = CurrentLiquidateVersionId;
+}
+
+pub fn run_to_block<Module: Hooks<BlockNumber>>(n: u64) {
+    while System::block_number() < n {
+        Module::on_finalize(System::block_number());
+        System::on_finalize(System::block_number());
+        System::set_block_number(System::block_number() + 1);
+        System::on_initialize(System::block_number());
+        Module::on_initialize(System::block_number());
+    }
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

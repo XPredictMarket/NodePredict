@@ -340,7 +340,7 @@ pub mod pallet {
             ensure!(currency_id > Zero::zero(), Error::<T>::TokenIdNotZero);
             ensure!(number > Zero::zero(), Error::<T>::NumberMustMoreThanZero);
             let now = <TimeOf<T> as Time>::now();
-            let minimum_interval_time = T::Pool::get_proposa_minimum_interval_time();
+            let minimum_interval_time = T::Pool::get_proposal_minimum_interval_time();
             ensure!(
                 close_time - now > minimum_interval_time,
                 Error::<T>::CloseTimeMustLargeThanNow

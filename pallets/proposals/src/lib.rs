@@ -274,7 +274,7 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> LiquidityPool<T> for Pallet<T> {
-    fn get_proposa_minimum_interval_time() -> MomentOf<T> {
+    fn get_proposal_minimum_interval_time() -> MomentOf<T> {
         ProposalMinimumIntervalTime::<T>::get().unwrap_or_else(Zero::zero)
     }
 

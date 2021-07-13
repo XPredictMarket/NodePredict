@@ -16,7 +16,7 @@ pub trait LiquidityPool<T>
 where
     T: ProposalSystem<T::AccountId> + frame_system::Config,
 {
-    fn get_proposa_minimum_interval_time() -> MomentOf<T>;
+    fn get_proposal_minimum_interval_time() -> MomentOf<T>;
     fn is_currency_id_used(currency_id: CurrencyIdOf<T>) -> bool;
     fn get_next_proposal_id() -> Result<ProposalIdOf<T>, DispatchError>;
     fn init_proposal(
