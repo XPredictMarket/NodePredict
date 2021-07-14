@@ -19,6 +19,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
 pub use pallet::*;
 
 use frame_support::{
@@ -107,12 +113,12 @@ pub mod pallet {
     #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
     pub struct Payload<Public, ProposalId, ResultId> {
         /// The id of the proposal that needs to upload the result
-        proposal_id: ProposalId,
+        pub proposal_id: ProposalId,
         /// The asset id of the proposal result
         ///
         /// The proposal option is a token, so here only the id of the corresponding token needs to be uploaded
-        result: ResultId,
-        public: Public,
+        pub result: ResultId,
+        pub public: Public,
     }
 
     /// implament trait for payload
@@ -241,7 +247,7 @@ pub mod pallet {
         /// Set the minimum stake amount
         SetMinimalNumber(BalanceOf<T>),
         /// Set the publicity interval
-        SetPublicityInterval(u32),
+        SetPublicityInterval(MomentOf<T>),
     }
 
     #[pallet::error]
@@ -425,7 +431,7 @@ pub mod pallet {
         #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
         pub fn set_publicity_interval(
             origin: OriginFor<T>,
-            interval: u32,
+            interval: MomentOf<T>,
         ) -> DispatchResultWithPostInfo {
             let _ = ensure_root(origin)?;
             PublicityInterval::<T>::set(Some(interval.into()));

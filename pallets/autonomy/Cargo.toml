@@ -25,6 +25,7 @@ xpmrl-utils = { version = "0.1.0", default-features = false, path = "../utils" }
 [dev-dependencies]
 pallet-balances = { version = "3.0.0" }
 xpmrl-tokens = { version = "0.1.0", path = "../tokens" }
+sp-keystore = { version = "0.9.0" }
 
 [features]
 default = ["std"]
