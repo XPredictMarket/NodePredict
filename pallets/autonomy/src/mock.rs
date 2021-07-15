@@ -1,13 +1,12 @@
 use crate::{self as autonomy, *};
-use xpmrl_traits::{pool::LiquidityPool, system::ProposalSystem, tokens::Tokens};
 
 use frame_support::{
-    construct_runtime, dispatch::DispatchResultWithPostInfo, parameter_types, traits::Time,
+    construct_runtime, parameter_types,
+    traits::{Hooks, Time},
 };
 use frame_system::{
-    ensure_signed, limits, mocking,
+    limits, mocking,
     offchain::{SendTransactionTypes, SigningTypes},
-    pallet_prelude::OriginFor,
 };
 use sp_core::{
     sr25519::{self, Signature},
@@ -20,11 +19,12 @@ use sp_runtime::{
     ModuleId,
 };
 use std::{cell::RefCell, collections::HashMap};
+use xpmrl_traits::{pool::LiquidityPool, system::ProposalSystem, tokens::Tokens};
 
 pub type Extrinsic = TestXt<Call, ()>;
 type UncheckedExtrinsic = mocking::MockUncheckedExtrinsic<Test>;
 type Block = mocking::MockBlock<Test>;
-type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
+pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 type BlockNumber = u64;
 type Balance = u128;
 type Public = <Signature as Verify>::Signer;
@@ -151,7 +151,6 @@ pub type MomentOf<T> = <TimeOf<T> as Time>::Moment;
 pub type ProposalIdOf<T> =
     <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
 type VersionIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::VersionId;
-type CategoryIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::CategoryId;
 
 pub struct ProposalsWrapper {
     pub next_proposal_id: ProposalIdOf<Test>,
@@ -193,6 +192,60 @@ impl Proposals {
                 Some(val) => Ok(*val),
                 None => Err("ProposalIdNotExist")?,
             }
+        })
+    }
+
+    pub fn set_announcement_time(
+        proposal_id: ProposalIdOf<Test>,
+        time: MomentOf<Test>,
+    ) -> Result<MomentOf<Test>, DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
+            wrapper
+                .borrow_mut()
+                .announcement_time
+                .insert(proposal_id, time);
+            Ok(time)
+        })
+    }
+
+    pub fn new_couple_proposal(
+        who: AccountId,
+        currency_id: CurrencyIdOf<Test>,
+    ) -> Result<(), DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<(), DispatchError> {
+            let id = wrapper.borrow().next_proposal_id;
+            wrapper.borrow_mut().next_proposal_id =
+                id.checked_add(1).ok_or(Error::<Test>::ProposalIdOverflow)?;
+            let decimals = <XPMRLTokens as Tokens<AccountId>>::decimals(currency_id)?;
+            let lp_id = <XPMRLTokens as Tokens<AccountId>>::new_asset(
+                "HAHA".as_bytes().to_vec(),
+                "HAHA".as_bytes().to_vec(),
+                decimals,
+            )?;
+            let yes_id = <XPMRLTokens as Tokens<AccountId>>::new_asset(
+                "YES".as_bytes().to_vec(),
+                "YES".as_bytes().to_vec(),
+                decimals,
+            )?;
+            let no_id = <XPMRLTokens as Tokens<AccountId>>::new_asset(
+                "YES".as_bytes().to_vec(),
+                "YES".as_bytes().to_vec(),
+                decimals,
+            )?;
+            wrapper.borrow_mut().used_currency_id.insert(lp_id, ());
+            wrapper.borrow_mut().used_currency_id.insert(yes_id, ());
+            wrapper.borrow_mut().used_currency_id.insert(no_id, ());
+            wrapper
+                .borrow_mut()
+                .proposal_pair
+                .insert(id, (yes_id, no_id));
+            wrapper
+                .borrow_mut()
+                .proposal_state
+                .insert(id, ProposalStatus::OriginalPrediction);
+            wrapper.borrow_mut().proposal_lp.insert(id, lp_id);
+            wrapper.borrow_mut().proposal_owner.insert(id, who);
+            Ok(())
         })
     }
 }
@@ -329,6 +382,10 @@ impl LiquidityCouple<Test> for Proposals {
                 .borrow_mut()
                 .proposal_result
                 .insert(proposal_id, result);
+            wrapper
+                .borrow_mut()
+                .proposal_state
+                .insert(proposal_id, ProposalStatus::End);
             Ok(())
         })
     }
@@ -341,55 +398,6 @@ impl LiquidityCouple<Test> for Proposals {
                 Some(val) => Ok(*val),
                 None => Err("ProposalIdNotExist")?,
             }
-        })
-    }
-
-    fn new_couple_proposal(
-        origin: OriginFor<Test>,
-        _title: Vec<u8>,
-        _optional: [Vec<u8>; 2],
-        _close_time: MomentOf<Test>,
-        _category_id: CategoryIdOf<Test>,
-        currency_id: CurrencyIdOf<Test>,
-        _number: BalanceOf<Test>,
-        _earn_fee: u32,
-        _detail: Vec<u8>,
-    ) -> DispatchResultWithPostInfo {
-        PROPOSALS_WRAPPER.with(|wrapper| -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-            let id = wrapper.borrow().next_proposal_id;
-            wrapper.borrow_mut().next_proposal_id =
-                id.checked_add(1).ok_or(Error::<Test>::ProposalIdOverflow)?;
-            let decimals = <XPMRLTokens as Tokens<AccountId>>::decimals(currency_id)?;
-            let lp_id = <XPMRLTokens as Tokens<AccountId>>::new_asset(
-                "HAHA".as_bytes().to_vec(),
-                "HAHA".as_bytes().to_vec(),
-                decimals,
-            )?;
-            let yes_id = <XPMRLTokens as Tokens<AccountId>>::new_asset(
-                "YES".as_bytes().to_vec(),
-                "YES".as_bytes().to_vec(),
-                decimals,
-            )?;
-            let no_id = <XPMRLTokens as Tokens<AccountId>>::new_asset(
-                "YES".as_bytes().to_vec(),
-                "YES".as_bytes().to_vec(),
-                decimals,
-            )?;
-            wrapper.borrow_mut().used_currency_id.insert(lp_id, ());
-            wrapper.borrow_mut().used_currency_id.insert(yes_id, ());
-            wrapper.borrow_mut().used_currency_id.insert(no_id, ());
-            wrapper
-                .borrow_mut()
-                .proposal_pair
-                .insert(id, (yes_id, no_id));
-            wrapper
-                .borrow_mut()
-                .proposal_state
-                .insert(id, ProposalStatus::OriginalPrediction);
-            wrapper.borrow_mut().proposal_lp.insert(id, lp_id);
-            wrapper.borrow_mut().proposal_owner.insert(id, who);
-            Ok(().into())
         })
     }
 }
@@ -407,12 +415,23 @@ impl autonomy::Config for Test {
     type CouplePool = Proposals;
 }
 
+pub fn run_to_block<Module: Hooks<BlockNumber>>(n: u64) {
+    while System::block_number() < n {
+        Module::on_finalize(System::block_number());
+        System::on_finalize(System::block_number());
+        System::set_block_number(System::block_number() + 1);
+        System::on_initialize(System::block_number());
+        Module::on_initialize(System::block_number());
+    }
+}
+
 pub fn new_test_ext<F>(f: F) -> ()
 where
     F: FnOnce(Vec<Public>) -> (),
 {
     // Initialize key store
     let keystore = KeyStore::new();
+    keystore.sr25519_generate_new(KEY_TYPE, None).unwrap();
     keystore.sr25519_generate_new(KEY_TYPE, None).unwrap();
     keystore.sr25519_generate_new(KEY_TYPE, None).unwrap();
     keystore.sr25519_generate_new(KEY_TYPE, None).unwrap();

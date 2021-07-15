@@ -36,12 +36,8 @@ mod tests;
 /// Import macros about storage-related operations
 pub(crate) mod macros;
 
-use frame_support::{
-    dispatch::{DispatchResultWithPostInfo, Weight},
-    ensure,
-    traits::Time,
-};
-use frame_system::{pallet_prelude::OriginFor, RawOrigin};
+use frame_support::{dispatch::Weight, ensure, traits::Time};
+use frame_system::RawOrigin;
 use num_traits::pow::pow;
 use sp_runtime::{
     traits::{CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, IntegerSquareRoot, One, Zero},
@@ -1049,29 +1045,5 @@ impl<T: Config> LiquidityCouple<T> for Pallet<T> {
     ) -> Result<CurrencyIdOf<T>, DispatchError> {
         ProposalLiquidateCurrencyId::<T>::get(proposal_id)
             .ok_or(Err(Error::<T>::ProposalIdNotExist)?)
-    }
-
-    fn new_couple_proposal(
-        origin: OriginFor<T>,
-        title: Vec<u8>,
-        optional: [Vec<u8>; 2],
-        close_time: MomentOf<T>,
-        category_id: CategoryIdOf<T>,
-        currency_id: CurrencyIdOf<T>,
-        number: BalanceOf<T>,
-        earn_fee: u32,
-        detail: Vec<u8>,
-    ) -> DispatchResultWithPostInfo {
-        Self::new_proposal(
-            origin,
-            title,
-            optional,
-            close_time,
-            category_id,
-            currency_id,
-            number,
-            earn_fee,
-            detail,
-        )
     }
 }

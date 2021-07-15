@@ -1,10 +1,9 @@
 use crate as proposals;
 use frame_support::{
-    dispatch::{DispatchError, DispatchResultWithPostInfo},
+    dispatch::DispatchError,
     parameter_types,
     traits::{GenesisBuild, Time},
 };
-use frame_system::pallet_prelude::OriginFor;
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
@@ -79,13 +78,11 @@ impl frame_system::Config for Test {
 
 type TokensOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
 type CurrencyIdOf<T> = <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::CurrencyId;
-type BalanceOf<T> = <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::Balance;
 
 type TimeOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Time;
 type MomentOf<T> = <TimeOf<T> as Time>::Moment;
 
 type ProposalIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
-type CategoryIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::CategoryId;
 pub struct Couple;
 impl LiquiditySubPool<Test> for Couple {
     fn finally_locked(_proposal_id: ProposalIdOf<Test>) -> Result<(), DispatchError> {
@@ -117,20 +114,6 @@ impl LiquidityCouple<Test> for Couple {
         _proposal_id: ProposalIdOf<Test>,
     ) -> Result<CurrencyIdOf<Test>, DispatchError> {
         Ok(1)
-    }
-
-    fn new_couple_proposal(
-        _origin: OriginFor<Test>,
-        _title: Vec<u8>,
-        _optional: [Vec<u8>; 2],
-        _close_time: MomentOf<Test>,
-        _category_id: CategoryIdOf<Test>,
-        _currency_id: CurrencyIdOf<Test>,
-        _number: BalanceOf<Test>,
-        _earn_fee: u32,
-        _detail: Vec<u8>,
-    ) -> DispatchResultWithPostInfo {
-        Ok(().into())
     }
 }
 
@@ -184,7 +167,6 @@ impl proposals::Config for Test {
     type Event = Event;
     type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
     type SubPool = Couple;
-    type CouplePool = Couple;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

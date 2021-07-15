@@ -1,7 +1,7 @@
 use crate::{mock::*, Error, Payload};
 
 use frame_support::{assert_noop, assert_ok};
-use xpmrl_traits::{couple::LiquidityCouple, pool::LiquidityPool, ProposalStatus};
+use xpmrl_traits::{pool::LiquidityPool, ProposalStatus};
 
 #[test]
 fn test_set_minimal_number() {
@@ -120,18 +120,7 @@ fn test_upload_result() {
             result: 3,
             public: account.clone(),
         };
-        let xx = "".as_bytes().to_vec();
-        assert_ok!(<Proposals as LiquidityCouple<Test>>::new_couple_proposal(
-            Origin::signed(*account),
-            xx.clone(),
-            [xx.clone(), xx.clone()],
-            0,
-            0,
-            1,
-            0,
-            0,
-            xx,
-        ));
+        assert_ok!(Proposals::new_couple_proposal(*account, 1));
         assert_noop!(
             AutonomyModule::upload_result(Origin::none(), payload.clone(), Default::default()),
             Error::<Test>::ProposalAbnormalState
@@ -163,6 +152,9 @@ fn test_upload_result() {
         let event = Event::autonomy(crate::Event::UploadResult(*account, 0, 4));
         assert!(System::events().iter().any(|record| record.event == event));
 
+        assert_eq!(AutonomyModule::temporary_results(0, *account), Some(4));
+        assert_eq!(AutonomyModule::statistical_results(0, 4), Some(1));
+
         assert_noop!(
             AutonomyModule::upload_result(Origin::none(), payload.clone(), Default::default()),
             Error::<Test>::AccountHasAlreadyUploaded
@@ -173,7 +165,57 @@ fn test_upload_result() {
 #[test]
 fn test_auto_merged_result() {
     new_test_ext(|public_key_array| {
-        let account = public_key_array.get(0).unwrap();
-        // TODO test begin_block function
+        let interval: MomentOf<Test> = 5;
+        assert_ok!(AutonomyModule::set_publicity_interval(
+            Origin::root(),
+            interval
+        ));
+        let own = public_key_array.get(0).unwrap();
+        assert_ok!(Proposals::new_couple_proposal(*own, 1));
+        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
+            0,
+            ProposalStatus::WaitingForResults,
+        ));
+
+        let with_index = |index: usize, result: CurrencyIdOf<Test>| -> AccountId {
+            let account = public_key_array.get(index).unwrap();
+            assert_ok!(AutonomyModule::stake(Origin::signed(*account)));
+            assert_ok!(AutonomyModule::tagging(Origin::root(), *account));
+            let payload = Payload {
+                proposal_id: 0,
+                result,
+                public: account.clone(),
+            };
+            assert_ok!(AutonomyModule::upload_result(
+                Origin::none(),
+                payload,
+                Default::default()
+            ),);
+            assert_eq!(AutonomyModule::temporary_results(0, *account), Some(result));
+            *account
+        };
+
+        let _node_1 = with_index(1, 4);
+        let _node_2 = with_index(2, 4);
+        let _node_3 = with_index(3, 5);
+        assert_eq!(AutonomyModule::statistical_results(0, 4), Some(2));
+        assert_eq!(AutonomyModule::statistical_results(0, 5), Some(1));
+
+        let now = System::block_number();
+        assert_ok!(Proposals::set_announcement_time(0, now));
+        run_to_block::<AutonomyModule>(now + interval + 1);
+        assert_eq!(
+            <Proposals as LiquidityPool<Test>>::get_proposal_state(0),
+            Ok(ProposalStatus::ResultAnnouncement)
+        );
+        let now = System::block_number();
+        assert_eq!(AutonomyModule::proposal_announcement(0), Some(now));
+
+        run_to_block::<AutonomyModule>(now + interval + 1);
+        assert_eq!(
+            <Proposals as LiquidityPool<Test>>::get_proposal_state(0),
+            Ok(ProposalStatus::End)
+        );
+        assert_eq!(Proposals::get_proposal_result(0), Ok(4));
     })
 }

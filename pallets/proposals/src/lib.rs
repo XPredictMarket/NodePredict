@@ -36,10 +36,8 @@ use xpmrl_traits::{
 pub mod pallet {
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
     use frame_system::pallet_prelude::*;
-    use sp_std::vec::Vec;
     use xpmrl_traits::{
-        couple::LiquidityCouple, pool::LiquiditySubPool, system::ProposalSystem, tokens::Tokens,
-        ProposalStatus as Status,
+        pool::LiquiditySubPool, system::ProposalSystem, tokens::Tokens, ProposalStatus as Status,
     };
     use xpmrl_utils::with_transaction_result;
 
@@ -50,12 +48,8 @@ pub mod pallet {
         <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
     pub(crate) type CurrencyIdOf<T> =
         <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::CurrencyId;
-    pub(crate) type BalanceOf<T> =
-        <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::Balance;
     pub(crate) type ProposalIdOf<T> =
         <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
-    pub(crate) type CategoryIdOf<T> =
-        <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::CategoryId;
     pub(crate) type VersionIdOf<T> =
         <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::VersionId;
 
@@ -64,7 +58,6 @@ pub mod pallet {
     pub trait Config: frame_system::Config + ProposalSystem<Self::AccountId> {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
         type SubPool: LiquiditySubPool<Self>;
-        type CouplePool: LiquidityCouple<Self>;
 
         /// Decimals of fee
         #[pallet::constant]
@@ -185,36 +178,6 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Create a new proposal
-        ///
-        /// The method has been deleted and moved to the couple module
-        ///
-        /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(0)]
-        pub fn new_proposal(
-            origin: OriginFor<T>,
-            title: Vec<u8>,
-            optional: [Vec<u8>; 2],
-            close_time: MomentOf<T>,
-            category_id: CategoryIdOf<T>,
-            currency_id: CurrencyIdOf<T>,
-            number: BalanceOf<T>,
-            earn_fee: u32,
-            detail: Vec<u8>,
-        ) -> DispatchResultWithPostInfo {
-            T::CouplePool::new_couple_proposal(
-                origin,
-                title,
-                optional,
-                close_time,
-                category_id,
-                currency_id,
-                number,
-                earn_fee,
-                detail,
-            )
-        }
-
         /// Set new state for proposal
         ///
         /// The dispatch origin for this call is `root`.

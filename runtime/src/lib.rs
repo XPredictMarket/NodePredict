@@ -288,7 +288,6 @@ parameter_types! {
 impl proposals::Config for Runtime {
     type Event = Event;
     type SubPool = Couple;
-    type CouplePool = Couple;
     type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
 }
 
