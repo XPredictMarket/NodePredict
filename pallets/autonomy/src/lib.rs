@@ -484,7 +484,7 @@ impl<T: Config> Pallet<T> {
         now: MomentOf<T>,
     ) -> Result<(), DispatchError> {
         let state = T::Pool::get_proposal_state(index)?;
-        let time = T::CouplePool::proposal_announcement_time(index)?;
+        let time = T::Pool::proposal_announcement_time(index)?;
         if let Some(val) = ProposalAnnouncement::<T>::get(index) {
             ensure!(
                 state == ProposalStatus::ResultAnnouncement,

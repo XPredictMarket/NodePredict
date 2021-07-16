@@ -36,7 +36,10 @@ mod tests;
 /// Import macros about storage-related operations
 pub(crate) mod macros;
 
-use frame_support::{dispatch::Weight, ensure, traits::Time};
+use frame_support::{
+    ensure,
+    traits::{Get, Time},
+};
 use frame_system::RawOrigin;
 use num_traits::pow::pow;
 use sp_runtime::{
@@ -77,7 +80,8 @@ pub mod pallet {
         <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::CategoryId;
     pub(crate) type ProposalIdOf<T> =
         <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
-    type VersionIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::VersionId;
+    pub(crate) type VersionIdOf<T> =
+        <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::VersionId;
     pub(crate) type TimeOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Time;
     pub(crate) type MomentOf<T> = <TimeOf<T> as Time>::Moment;
 
@@ -126,27 +130,6 @@ pub mod pallet {
     #[pallet::getter(fn proposals)]
     pub type Proposals<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, Proposal<T::CategoryId>, OptionQuery>;
-
-    /// storage proposal closed time, It's also the end time. After the end, you can upload the
-    /// results
-    #[pallet::storage]
-    #[pallet::getter(fn proposal_close_time)]
-    pub type ProposalCloseTime<T: Config> =
-        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>, OptionQuery>;
-
-    /// It stores the creation time of the proposal, which is mainly used to determine whether the
-    /// proposal has expired and needs to be closed. If there is no heat after the proposal is put
-    /// forward, it will be closed after a period of time.
-    #[pallet::storage]
-    #[pallet::getter(fn proposal_create_time)]
-    pub type ProposalCreateTime<T: Config> =
-        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>, OptionQuery>;
-
-    /// Time when the proposal enters the announcement
-    #[pallet::storage]
-    #[pallet::getter(fn proposal_announcement_time)]
-    pub type ProposalAnnouncementTime<T: Config> =
-        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>>;
 
     /// It stores the option tokens of the proposal
     #[pallet::storage]
@@ -302,17 +285,7 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        /// When the block is encapsulated, execute the following hook function
-        ///
-        /// At this time, it is used to automatically expire the proposal
-        fn on_initialize(n: T::BlockNumber) -> Weight {
-            Self::begin_block(n).unwrap_or_else(|e| {
-                sp_runtime::print(e);
-                0
-            })
-        }
-    }
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
@@ -346,7 +319,6 @@ pub mod pallet {
                 Error::<T>::CurrencyIdNotAllowed
             );
             let proposal_id = with_transaction_result(|| {
-                let version: VersionIdOf<T> = T::CurrentLiquidateVersionId::get();
                 let proposal_id = T::Pool::get_next_proposal_id()?;
                 let (yes_id, no_id, lp_id) = Self::init_pool(
                     &who,
@@ -360,12 +332,6 @@ pub mod pallet {
                     earn_fee,
                     detail,
                 )?;
-                T::Pool::init_proposal(
-                    proposal_id,
-                    &who,
-                    ProposalStatus::OriginalPrediction,
-                    version,
-                );
                 T::Pool::append_used_currency(yes_id);
                 T::Pool::append_used_currency(no_id);
                 T::Pool::append_used_currency(lp_id);
@@ -731,38 +697,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
-        let now = <TimeOf<T> as Time>::now();
-        let expiration_time = T::Pool::proposal_automatic_expiration_time();
-        let max_id = T::Pool::max_proposal_id();
-        let mut index: ProposalIdOf<T> = Zero::zero();
-        loop {
-            if index >= max_id {
-                break;
-            }
-            let start =
-                ProposalCreateTime::<T>::get(index).ok_or(Error::<T>::ProposalIdNotExist)?;
-            let end = ProposalCloseTime::<T>::get(index).ok_or(Error::<T>::ProposalIdNotExist)?;
-            let diff = now.checked_sub(&start).unwrap_or_else(Zero::zero);
-            let state =
-                T::Pool::get_proposal_state(index).unwrap_or(ProposalStatus::OriginalPrediction);
-            if diff > expiration_time && state == ProposalStatus::OriginalPrediction {
-                T::Pool::set_proposal_state(index, ProposalStatus::End)?;
-            } else if now > end {
-                if state == ProposalStatus::OriginalPrediction {
-                    T::Pool::set_proposal_state(index, ProposalStatus::End)?;
-                } else if state == ProposalStatus::FormalPrediction {
-                    T::Pool::set_proposal_state(index, ProposalStatus::WaitingForResults)?;
-                    ProposalAnnouncementTime::<T>::insert(index, now);
-                }
-            }
-            index = index
-                .checked_add(&One::one())
-                .ok_or(Error::<T>::ProposalIdOverflow)?;
-        }
-        Ok(0)
-    }
-
     fn get_other_optional_id(
         proposal_id: ProposalIdOf<T>,
         optional_currency_id: CurrencyIdOf<T>,
@@ -855,6 +789,7 @@ impl<T: Config> Pallet<T> {
         earn_fee: u32,
         detail: Vec<u8>,
     ) -> Result<(CurrencyIdOf<T>, CurrencyIdOf<T>, CurrencyIdOf<T>), DispatchError> {
+        let version: VersionIdOf<T> = T::CurrentLiquidateVersionId::get();
         Proposals::<T>::insert(
             proposal_id,
             Proposal {
@@ -863,8 +798,14 @@ impl<T: Config> Pallet<T> {
                 detail,
             },
         );
-        ProposalCloseTime::<T>::insert(proposal_id, close_time);
-        ProposalCreateTime::<T>::insert(proposal_id, T::Time::now());
+        T::Pool::init_proposal(
+            proposal_id,
+            &who,
+            ProposalStatus::OriginalPrediction,
+            T::Time::now(),
+            close_time,
+            version,
+        );
         ProposalCurrencyId::<T>::insert(proposal_id, currency_id);
         <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, &who, number)?;
         let decimals = <TokensOf<T> as Tokens<T::AccountId>>::decimals(currency_id)?;
@@ -1018,16 +959,13 @@ impl<T: Config> LiquiditySubPool<T> for Pallet<T> {
 }
 
 impl<T: Config> LiquidityCouple<T> for Pallet<T> {
-    fn proposal_announcement_time(
-        proposal_id: ProposalIdOf<T>,
-    ) -> Result<MomentOf<T>, DispatchError> {
-        ProposalAnnouncementTime::<T>::get(proposal_id).ok_or(Err(Error::<T>::ProposalIdNotExist)?)
-    }
-
     fn proposal_pair(
         proposal_id: ProposalIdOf<T>,
     ) -> Result<(CurrencyIdOf<T>, CurrencyIdOf<T>), DispatchError> {
-        PoolPairs::<T>::get(proposal_id).ok_or(Err(Error::<T>::ProposalIdNotExist)?)
+        match PoolPairs::<T>::get(proposal_id) {
+            Some(pair) => Ok(pair),
+            None => Err(Error::<T>::ProposalIdNotExist)?,
+        }
     }
 
     fn set_proposal_result(
@@ -1043,7 +981,9 @@ impl<T: Config> LiquidityCouple<T> for Pallet<T> {
     fn proposal_liquidate_currency_id(
         proposal_id: ProposalIdOf<T>,
     ) -> Result<CurrencyIdOf<T>, DispatchError> {
-        ProposalLiquidateCurrencyId::<T>::get(proposal_id)
-            .ok_or(Err(Error::<T>::ProposalIdNotExist)?)
+        match ProposalLiquidateCurrencyId::<T>::get(proposal_id) {
+            Some(id) => Ok(id),
+            None => Err(Error::<T>::ProposalIdNotExist)?,
+        }
     }
 }

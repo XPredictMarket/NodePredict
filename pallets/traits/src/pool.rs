@@ -23,6 +23,8 @@ where
         proposal_id: ProposalIdOf<T>,
         owner: &T::AccountId,
         state: ProposalStatus,
+        create_time: MomentOf<T>,
+        close_time: MomentOf<T>,
         version: VersionIdOf<T>,
     );
     fn append_used_currency(currency_id: CurrencyIdOf<T>);
@@ -39,6 +41,9 @@ where
     fn proposal_liquidity_provider_fee_rate() -> u32;
 
     fn proposal_owner(proposal_id: ProposalIdOf<T>) -> Result<T::AccountId, DispatchError>;
+    fn proposal_announcement_time(
+        proposal_id: ProposalIdOf<T>,
+    ) -> Result<MomentOf<T>, DispatchError>;
 }
 
 pub trait LiquiditySubPool<T>

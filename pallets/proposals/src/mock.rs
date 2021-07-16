@@ -1,8 +1,8 @@
-use crate as proposals;
+use crate::{self as proposals, Error};
 use frame_support::{
     dispatch::DispatchError,
     parameter_types,
-    traits::{GenesisBuild, Time},
+    traits::{Hooks, Time},
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -10,26 +10,31 @@ use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
     ModuleId,
 };
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::HashMap};
 use xpmrl_traits::{
-    couple::LiquidityCouple, pool::LiquiditySubPool, system::ProposalSystem, tokens::Tokens,
+    couple::LiquidityCouple,
+    pool::{LiquidityPool, LiquiditySubPool},
+    system::ProposalSystem,
+    tokens::Tokens,
+    ProposalStatus,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type AccountId = u64;
 type Balance = u128;
+pub type BlockNumber = u64;
 
 thread_local! {
-    static TIME: RefCell<u32> = RefCell::new(0);
+    static COUPLE_WRAPPER: RefCell<CoupleWrapper> = RefCell::new(CoupleWrapper::new());
 }
 
 pub struct Timestamp;
 impl Time for Timestamp {
-    type Moment = u32;
+    type Moment = u64;
 
     fn now() -> Self::Moment {
-        TIME.with(|v| *v.borrow())
+        System::block_number()
     }
 }
 
@@ -59,7 +64,7 @@ impl frame_system::Config for Test {
     type Origin = Origin;
     type Call = Call;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
@@ -80,10 +85,75 @@ type TokensOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>
 type CurrencyIdOf<T> = <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::CurrencyId;
 
 type TimeOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Time;
-type MomentOf<T> = <TimeOf<T> as Time>::Moment;
+pub type MomentOf<T> = <TimeOf<T> as Time>::Moment;
 
 type ProposalIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
+
+pub struct CoupleWrapper {
+    pub announcement_time: HashMap<ProposalIdOf<Test>, MomentOf<Test>>,
+    pub proposal_pair: HashMap<ProposalIdOf<Test>, (CurrencyIdOf<Test>, CurrencyIdOf<Test>)>,
+    pub proposal_result: HashMap<ProposalIdOf<Test>, CurrencyIdOf<Test>>,
+    pub proposal_lp: HashMap<ProposalIdOf<Test>, CurrencyIdOf<Test>>,
+}
+
+impl CoupleWrapper {
+    fn new() -> CoupleWrapper {
+        CoupleWrapper {
+            announcement_time: HashMap::<ProposalIdOf<Test>, MomentOf<Test>>::new(),
+            proposal_result: HashMap::<ProposalIdOf<Test>, CurrencyIdOf<Test>>::new(),
+            proposal_pair:
+                HashMap::<ProposalIdOf<Test>, (CurrencyIdOf<Test>, CurrencyIdOf<Test>)>::new(),
+            proposal_lp: HashMap::<ProposalIdOf<Test>, CurrencyIdOf<Test>>::new(),
+        }
+    }
+}
+
 pub struct Couple;
+impl Couple {
+    pub fn new_couple_proposal(
+        who: AccountId,
+        currency_id: CurrencyIdOf<Test>,
+        close_time: MomentOf<Test>,
+    ) -> Result<(), DispatchError> {
+        COUPLE_WRAPPER.with(|wrapper| -> Result<(), DispatchError> {
+            let id = <ProposalsModule as LiquidityPool<Test>>::get_next_proposal_id()?;
+            let decimals = <XPMRLTokens as Tokens<AccountId>>::decimals(currency_id)?;
+            let lp_id = <XPMRLTokens as Tokens<AccountId>>::new_asset(
+                "HAHA".as_bytes().to_vec(),
+                "HAHA".as_bytes().to_vec(),
+                decimals,
+            )?;
+            let yes_id = <XPMRLTokens as Tokens<AccountId>>::new_asset(
+                "YES".as_bytes().to_vec(),
+                "YES".as_bytes().to_vec(),
+                decimals,
+            )?;
+            let no_id = <XPMRLTokens as Tokens<AccountId>>::new_asset(
+                "YES".as_bytes().to_vec(),
+                "YES".as_bytes().to_vec(),
+                decimals,
+            )?;
+            <ProposalsModule as LiquidityPool<Test>>::append_used_currency(lp_id);
+            <ProposalsModule as LiquidityPool<Test>>::append_used_currency(yes_id);
+            <ProposalsModule as LiquidityPool<Test>>::append_used_currency(no_id);
+            wrapper
+                .borrow_mut()
+                .proposal_pair
+                .insert(id, (yes_id, no_id));
+            <ProposalsModule as LiquidityPool<Test>>::init_proposal(
+                id,
+                &who,
+                ProposalStatus::OriginalPrediction,
+                <TimeOf<Test> as Time>::now(),
+                close_time,
+                1,
+            );
+            wrapper.borrow_mut().proposal_lp.insert(id, lp_id);
+            Ok(())
+        })
+    }
+}
+
 impl LiquiditySubPool<Test> for Couple {
     fn finally_locked(_proposal_id: ProposalIdOf<Test>) -> Result<(), DispatchError> {
         Ok(())
@@ -91,29 +161,45 @@ impl LiquiditySubPool<Test> for Couple {
 }
 
 impl LiquidityCouple<Test> for Couple {
-    fn proposal_announcement_time(
-        _proposal_id: ProposalIdOf<Test>,
-    ) -> Result<MomentOf<Test>, DispatchError> {
-        Ok(0)
-    }
-
     fn proposal_pair(
-        _proposal_id: ProposalIdOf<Test>,
+        proposal_id: ProposalIdOf<Test>,
     ) -> Result<(CurrencyIdOf<Test>, CurrencyIdOf<Test>), DispatchError> {
-        Ok((1, 1))
+        COUPLE_WRAPPER.with(
+            |wrapper| -> Result<(CurrencyIdOf<Test>, CurrencyIdOf<Test>), DispatchError> {
+                match wrapper.borrow().proposal_pair.get(&proposal_id) {
+                    Some(val) => Ok(*val),
+                    None => Err(Error::<Test>::ProposalIdNotExist)?,
+                }
+            },
+        )
     }
 
     fn set_proposal_result(
-        _proposal_id: ProposalIdOf<Test>,
-        _result: CurrencyIdOf<Test>,
+        proposal_id: ProposalIdOf<Test>,
+        result: CurrencyIdOf<Test>,
     ) -> Result<(), DispatchError> {
-        Ok(())
+        COUPLE_WRAPPER.with(|wrapper| -> Result<(), DispatchError> {
+            wrapper
+                .borrow_mut()
+                .proposal_result
+                .insert(proposal_id, result);
+            <ProposalsModule as LiquidityPool<Test>>::set_proposal_state(
+                proposal_id,
+                ProposalStatus::End,
+            )?;
+            Ok(())
+        })
     }
 
     fn proposal_liquidate_currency_id(
-        _proposal_id: ProposalIdOf<Test>,
+        proposal_id: ProposalIdOf<Test>,
     ) -> Result<CurrencyIdOf<Test>, DispatchError> {
-        Ok(1)
+        COUPLE_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
+            match wrapper.borrow().proposal_lp.get(&proposal_id) {
+                Some(val) => Ok(*val),
+                None => Err(Error::<Test>::ProposalIdNotExist)?,
+            }
+        })
     }
 }
 
@@ -161,12 +247,24 @@ impl xpmrl_tokens::Config for Test {
 
 parameter_types! {
     pub const EarnTradingFeeDecimals: u8 = 4;
+    pub const GovernanceCurrencyId: CurrencyIdOf<Test> = 1;
 }
 
 impl proposals::Config for Test {
     type Event = Event;
     type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
     type SubPool = Couple;
+    type GovernanceCurrencyId = GovernanceCurrencyId;
+}
+
+pub fn run_to_block<Module: Hooks<BlockNumber>>(n: BlockNumber) {
+    while System::block_number() < n {
+        Module::on_finalize(System::block_number());
+        System::on_finalize(System::block_number());
+        System::set_block_number(System::block_number() + 1);
+        System::on_initialize(System::block_number());
+        Module::on_initialize(System::block_number());
+    }
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
@@ -174,15 +272,23 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .build_storage::<Test>()
         .unwrap();
     let tokens_genesis = xpmrl_tokens::GenesisConfig::<Test> {
-        tokens: vec![],
-        balances: vec![],
+        tokens: vec![
+            (
+                "Tether USD".as_bytes().to_vec(),
+                "USDT".as_bytes().to_vec(),
+                6,
+            ),
+            ("Bitcoin".as_bytes().to_vec(), "BTC".as_bytes().to_vec(), 8),
+        ],
+        balances: vec![(1, 100_000), (2, 100_000), (3, 100_000), (4, 100_000)],
     };
-    let proposals_genesis = proposals::GenesisConfig {
-        expiration_time: 3 * 24 * 60 * 60 * 1000,
-        liquidity_provider_fee_rate: 9000,
-        minimum_interval_time: 60 * 1000,
+    let proposals_genesis = proposals::GenesisConfig::<Test> {
+        expiration_time: 100,
+        liquidity_provider_fee_rate: 9_000,
+        minimum_interval_time: 60 * 1_000,
+        minimum_vote: 1_000,
     };
-    GenesisBuild::<Test>::assimilate_storage(&proposals_genesis, &mut t).unwrap();
+    proposals_genesis.assimilate_storage(&mut t).unwrap();
     tokens_genesis.assimilate_storage(&mut t).unwrap();
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));

@@ -283,12 +283,14 @@ impl ProposalSystem<AccountId> for Runtime {
 
 parameter_types! {
     pub const EarnTradingFeeDecimals: u8 = FEE_DECIMALS;
+    pub const GovernanceCurrencyId: CurrencyId = 1;
 }
 
 impl proposals::Config for Runtime {
     type Event = Event;
     type SubPool = Couple;
     type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
+    type GovernanceCurrencyId = GovernanceCurrencyId;
 }
 
 parameter_types! {
@@ -358,7 +360,7 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment::{Module, Storage},
         Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
         // Include the custom logic from the template pallet in the runtime.
-        Proposals: proposals::{Module, Call, Config, Storage, Event<T>},
+        Proposals: proposals::{Module, Call, Config<T>, Storage, Event<T>},
         Couple: couple::{Module, Call, Storage, Event<T>},
         Autonomy: autonomy::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
         Tokens: tokens::{Module, Call, Config<T>, Storage, Event<T>},
@@ -532,7 +534,7 @@ impl_runtime_apis! {
         fn get_proposal_info(_: VersionId, proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment, CurrencyId> {
             let proposal = Couple::proposals(proposal_id).unwrap_or_default();
             let (yes, no) = Couple::proposal_total_optional_market(proposal_id).unwrap_or_default();
-            let close_time = Couple::proposal_close_time(proposal_id).unwrap_or_default();
+            let close_time = Proposals::proposal_close_time(proposal_id).unwrap_or_default();
             let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or_default();
             let pairs = Couple::pool_pairs(proposal_id).unwrap_or_default();
             let yes_name = Tokens::currencies(pairs.0).unwrap_or_default().name;
@@ -576,7 +578,7 @@ impl_runtime_apis! {
             let total = Couple::proposal_total_market(proposal_id).unwrap_or_default();
             let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or_default();
             let balance = Tokens::free_balance_of(account_id, currency_id).unwrap_or_default();
-            let close_time = Couple::proposal_close_time(proposal_id).unwrap_or_default();
+            let close_time = Proposals::proposal_close_time(proposal_id).unwrap_or_default();
             let status = Proposals::proposal_status(proposal_id).unwrap_or(ProposalStatus::OriginalPrediction);
 
             PersonalProposalInfo {

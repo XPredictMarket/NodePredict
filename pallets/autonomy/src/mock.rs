@@ -52,7 +52,7 @@ construct_runtime!(
         System: frame_system::{Module, Call, Config, Storage, Event<T>},
         XPMRLTokens: xpmrl_tokens::{Module, Call, Storage, Event<T>},
         PalletBalances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-        AutonomyModule: autonomy::{Module, Call, Storage, Event<T>, ValidateUnsigned},
+        AutonomyModule: autonomy::{Module, Call, Storage, Event<T>},
     }
 );
 
@@ -274,6 +274,8 @@ impl LiquidityPool<Test> for Proposals {
         proposal_id: ProposalIdOf<Test>,
         owner: &AccountId,
         state: ProposalStatus,
+        _create_time: MomentOf<Test>,
+        _close_time: MomentOf<Test>,
         _version: VersionIdOf<Test>,
     ) {
         PROPOSALS_WRAPPER.with(|wrapper| -> () {
@@ -346,20 +348,20 @@ impl LiquidityPool<Test> for Proposals {
             }
         })
     }
-}
 
-impl LiquidityCouple<Test> for Proposals {
     fn proposal_announcement_time(
         proposal_id: ProposalIdOf<Test>,
     ) -> Result<MomentOf<Test>, DispatchError> {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
             match wrapper.borrow().announcement_time.get(&proposal_id) {
-                Some(val) => Ok(*val),
+                Some(v) => Ok(*v),
                 None => Err("ProposalIdNotExist")?,
             }
         })
     }
+}
 
+impl LiquidityCouple<Test> for Proposals {
     fn proposal_pair(
         proposal_id: ProposalIdOf<Test>,
     ) -> Result<(CurrencyIdOf<Test>, CurrencyIdOf<Test>), DispatchError> {
@@ -415,7 +417,7 @@ impl autonomy::Config for Test {
     type CouplePool = Proposals;
 }
 
-pub fn run_to_block<Module: Hooks<BlockNumber>>(n: u64) {
+pub fn run_to_block<Module: Hooks<BlockNumber>>(n: BlockNumber) {
     while System::block_number() < n {
         Module::on_finalize(System::block_number());
         System::on_finalize(System::block_number());

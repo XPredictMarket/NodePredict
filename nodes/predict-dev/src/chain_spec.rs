@@ -263,9 +263,10 @@ fn testnet_genesis(
             balances,
         }),
         proposals: Some(ProposalsConfig {
-            expiration_time: 3 * 24 * 60 * 60 * 1000,
+            expiration_time: 7 * 24 * 60 * 60 * 1000,
             liquidity_provider_fee_rate: 9000,
             minimum_interval_time: 10 * 60 * 1000,
+            minimum_vote: 10_000 * 100_000_000,
         }),
         autonomy: Some(AutonomyConfig {
             minimal_number: 10000 * 100000000,

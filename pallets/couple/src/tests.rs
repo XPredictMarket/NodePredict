@@ -32,7 +32,6 @@ fn create_proposal(
 #[test]
 fn test_new_proposal() {
     new_test_ext().execute_with(|| {
-        let now = <Timestamp as Time>::now();
         let number: BalanceOf<Test> = 100000;
         let step: MomentOf<Test> = 10;
         let fee_rate: u32 = 2000;
@@ -41,7 +40,6 @@ fn test_new_proposal() {
         let id = create_proposal(account, currency_id, number, fee_rate, step);
 
         assert_eq!(CoupleModule::pool_pairs(id), Some((3, 4)));
-        assert_eq!(CoupleModule::proposal_close_time(id), Some(now + step));
         assert_eq!(CoupleModule::proposal_currency_id(id), Some(currency_id));
         assert_eq!(CoupleModule::proposal_liquidate_currency_id(id), Some(5));
         assert_eq!(
@@ -363,49 +361,6 @@ fn test_set_result() {
         assert_eq!(
             <Proposals as LiquidityPool<Test>>::get_proposal_state(id),
             Ok(ProposalState::End)
-        );
-    });
-}
-
-#[test]
-fn test_hooks() {
-    new_test_ext().execute_with(|| {
-        let step: MomentOf<Test> = 10;
-        let id = create_proposal(1, 1, 100, 200, step);
-        let interval_time =
-            <Proposals as LiquidityPool<Test>>::get_proposal_minimum_interval_time();
-
-        let now = <Timestamp as Time>::now();
-        run_to_block::<CoupleModule>(now + interval_time);
-        assert_eq!(
-            <Proposals as LiquidityPool<Test>>::get_proposal_state(id),
-            Ok(ProposalState::End)
-        );
-
-        let id = create_proposal(1, 1, 100, 200, step);
-        Proposals::set_proposal_minimum_interval_time(100);
-        let now = <Timestamp as Time>::now();
-        run_to_block::<CoupleModule>(now + step);
-        assert_eq!(
-            <Proposals as LiquidityPool<Test>>::get_proposal_state(id),
-            Ok(ProposalState::End)
-        );
-        Proposals::set_proposal_minimum_interval_time(interval_time);
-
-        let id = create_proposal(1, 1, 100, 200, step);
-        Proposals::set_proposal_minimum_interval_time(100);
-        assert_eq!(
-            <Proposals as LiquidityPool<Test>>::set_proposal_state(
-                id,
-                ProposalState::FormalPrediction,
-            ),
-            Ok(ProposalState::FormalPrediction)
-        );
-        let now = <Timestamp as Time>::now();
-        run_to_block::<CoupleModule>(now + step + 1);
-        assert_eq!(
-            <Proposals as LiquidityPool<Test>>::get_proposal_state(id),
-            Ok(ProposalState::WaitingForResults)
         );
     });
 }

@@ -25,10 +25,18 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use frame_support::{dispatch::DispatchError, ensure, traits::Get};
-use sp_runtime::traits::{CheckedAdd, One, Zero};
+#[cfg(feature = "std")]
+use frame_support::traits::GenesisBuild;
+
+use frame_support::{
+    dispatch::{DispatchError, Weight},
+    ensure,
+    traits::{Get, Time},
+};
+use sp_runtime::traits::{CheckedAdd, CheckedSub, One, Zero};
 use xpmrl_traits::{
     pool::{LiquidityPool, LiquiditySubPool},
+    tokens::Tokens,
     ProposalStatus as Status,
 };
 
@@ -36,8 +44,12 @@ use xpmrl_traits::{
 pub mod pallet {
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
     use frame_system::pallet_prelude::*;
+    use sp_runtime::traits::Zero;
     use xpmrl_traits::{
-        pool::LiquiditySubPool, system::ProposalSystem, tokens::Tokens, ProposalStatus as Status,
+        pool::{LiquidityPool, LiquiditySubPool},
+        system::ProposalSystem,
+        tokens::Tokens,
+        ProposalStatus as Status,
     };
     use xpmrl_utils::with_transaction_result;
 
@@ -52,6 +64,8 @@ pub mod pallet {
         <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
     pub(crate) type VersionIdOf<T> =
         <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::VersionId;
+    pub(crate) type BalanceOf<T> =
+        <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::Balance;
 
     /// This is the pallet's configuration trait
     #[pallet::config]
@@ -62,6 +76,9 @@ pub mod pallet {
         /// Decimals of fee
         #[pallet::constant]
         type EarnTradingFeeDecimals: Get<u8>;
+
+        #[pallet::constant]
+        type GovernanceCurrencyId: Get<CurrencyIdOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -99,6 +116,28 @@ pub mod pallet {
     pub type ProposalUsedCurrencyId<T: Config> =
         StorageMap<_, Blake2_128Concat, CurrencyIdOf<T>, bool, ValueQuery>;
 
+    /// storage proposal closed time, It's also the end time. After the end, you can upload the
+    /// results
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_close_time)]
+    pub type ProposalCloseTime<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>, OptionQuery>;
+
+    /// It stores the creation time of the proposal, which is mainly used to determine whether the
+    /// proposal has expired and needs to be closed. If there is no heat after the proposal is put
+    /// forward, it will be closed after a period of time.
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_create_time)]
+    pub type ProposalCreateTime<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>, OptionQuery>;
+
+    /// Time when the proposal enters the announcement
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_announcement_time)]
+    pub type ProposalAnnouncementTime<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>>;
+
+    /// After this period, the proposal will enter the formal proposal state based on voting
     #[pallet::storage]
     #[pallet::getter(fn proposal_automatic_expiration_time)]
     pub type ProposalAutomaticExpirationTime<T: Config> = StorageValue<_, MomentOf<T>>;
@@ -114,30 +153,74 @@ pub mod pallet {
     #[pallet::getter(fn proposal_liquidity_provider_fee_rate)]
     pub type ProposalLiquidityProviderFeeRate<T: Config> = StorageValue<_, u32>;
 
+    /// Stores the number of governance tokens pledged by users on a proposal
+    ///
+    /// `bool` means approval or disapproval
+    /// - `true` means vote approval
+    /// - `false` means vote disapproval
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_vote_stake)]
+    pub type ProposalVoteStake<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        ProposalIdOf<T>,
+        Twox64Concat,
+        T::AccountId,
+        (BalanceOf<T>, bool),
+        OptionQuery,
+    >;
+
+    /// Statistics of votes on a proposal
+    ///
+    /// `bool` means approval or disapproval
+    /// - `true` means vote approval
+    /// - `false` means vote disapproval
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_count_vote)]
+    pub type ProposalCountVote<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        ProposalIdOf<T>,
+        Twox64Concat,
+        bool,
+        BalanceOf<T>,
+        OptionQuery,
+    >;
+
+    /// The number of votes for the proposal must be greater than the minimum number of votes, so
+    /// that the proposal can be converted to a formal proposal
+    #[pallet::storage]
+    #[pallet::getter(fn minimum_vote)]
+    pub type MinimumVote<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
+
     #[pallet::genesis_config]
-    pub struct GenesisConfig {
+    pub struct GenesisConfig<T: Config> {
         pub expiration_time: u32,
         pub liquidity_provider_fee_rate: u32,
         pub minimum_interval_time: u32,
+        pub minimum_vote: BalanceOf<T>,
     }
 
     #[cfg(feature = "std")]
-    impl Default for GenesisConfig {
+    impl<T: Config> Default for GenesisConfig<T> {
         fn default() -> Self {
             Self {
-                expiration_time: 3 * 24 * 60 * 60 * 1000,
+                /// one week
+                expiration_time: 7 * 24 * 60 * 60 * 1000,
                 liquidity_provider_fee_rate: 9000,
                 minimum_interval_time: 10 * 60 * 1000,
+                minimum_vote: Zero::zero(),
             }
         }
     }
 
     #[pallet::genesis_build]
-    impl<T: Config> GenesisBuild<T> for GenesisConfig {
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
             ProposalAutomaticExpirationTime::<T>::set(Some(self.expiration_time.into()));
             ProposalLiquidityProviderFeeRate::<T>::set(Some(self.liquidity_provider_fee_rate));
             ProposalMinimumIntervalTime::<T>::set(Some(self.minimum_interval_time.into()));
+            MinimumVote::<T>::set(Some(self.minimum_vote));
         }
     }
 
@@ -146,6 +229,8 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         ProposalStatusChanged(ProposalIdOf<T>, Status),
+        StakeTo(T::AccountId, ProposalIdOf<T>, BalanceOf<T>),
+        UnStakeFrom(T::AccountId, ProposalIdOf<T>, BalanceOf<T>),
     }
 
     #[pallet::error]
@@ -158,21 +243,23 @@ pub mod pallet {
         ProposalAbnormalState,
         /// When setting the state, the new state cannot be the same as the old state
         StatusMustDiff,
+        /// Users are not allowed to vote on the same proposal repeatedly
+        NonRrepeatableStake,
+        VoteOverflow,
+        /// Proposal owners are not allowed to submit their own proposals
+        OwnerNotAllowedVote,
     }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_runtime_upgrade() -> frame_support::weights::Weight {
-            if let Ok(_) = ProposalMinimumIntervalTime::<T>::try_mutate(
-                |optional| -> Result<(), DispatchError> {
-                    if let None = optional {
-                        let minimum_interval_time: u32 = 10 * 60 * 1000;
-                        *optional = Some(minimum_interval_time.into());
-                    }
-                    Ok(())
-                },
-            ) {}
-            0
+        /// When the block is encapsulated, execute the following hook function
+        ///
+        /// At this time, it is used to automatically expire the proposal
+        fn on_initialize(n: T::BlockNumber) -> Weight {
+            Self::begin_block(n).unwrap_or_else(|e| {
+                sp_runtime::print(e);
+                0
+            })
         }
     }
 
@@ -188,8 +275,7 @@ pub mod pallet {
             new_status: Status,
         ) -> DispatchResultWithPostInfo {
             let _ = ensure_root(origin)?;
-            let state =
-                ProposalStatus::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+            let state = <Self as LiquidityPool<T>>::get_proposal_state(proposal_id)?;
             ensure!(
                 state == Status::OriginalPrediction,
                 Error::<T>::ProposalAbnormalState
@@ -204,11 +290,177 @@ pub mod pallet {
             Self::deposit_event(Event::ProposalStatusChanged(proposal_id, state));
             Ok(().into())
         }
+
+        /// If users are interested in a proposal and need to vote, they need to pledge a certain
+        /// amount of governance tokens to vote
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn stake_to(
+            origin: OriginFor<T>,
+            proposal_id: ProposalIdOf<T>,
+            number: BalanceOf<T>,
+            approval: bool,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let state = <Self as LiquidityPool<T>>::get_proposal_state(proposal_id)?;
+            ensure!(
+                state == Status::OriginalPrediction,
+                Error::<T>::ProposalAbnormalState
+            );
+            let owner = <Self as LiquidityPool<T>>::proposal_owner(proposal_id)?;
+            ensure!(who != owner, Error::<T>::OwnerNotAllowedVote);
+            let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
+                Self::inner_stake_to(&who, proposal_id, number, approval)
+            })?;
+            Self::deposit_event(Event::<T>::StakeTo(who, proposal_id, number));
+            Ok(().into())
+        }
+
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn unstake_from(
+            origin: OriginFor<T>,
+            proposal_id: ProposalIdOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let state = <Self as LiquidityPool<T>>::get_proposal_state(proposal_id)?;
+            ensure!(
+                state != Status::OriginalPrediction,
+                Error::<T>::ProposalAbnormalState
+            );
+            let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
+                let currency_id = T::GovernanceCurrencyId::get();
+                let number = ProposalVoteStake::<T>::try_mutate_exists(
+                    proposal_id,
+                    &who,
+                    |optional| -> Result<BalanceOf<T>, DispatchError> {
+                        match optional.clone() {
+                            Some(val) => {
+                                *optional = None;
+                                Ok(val.0)
+                            }
+                            None => Ok(Zero::zero()),
+                        }
+                    },
+                )?;
+                <TokensOf<T> as Tokens<T::AccountId>>::unreserve(currency_id, &who, number)?;
+                Ok(number)
+            })?;
+            Self::deposit_event(Event::<T>::UnStakeFrom(who, proposal_id, number));
+            Ok(().into())
+        }
+
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn set_proposal_minimum_interval_time(
+            origin: OriginFor<T>,
+            time: MomentOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let _ = ensure_root(origin)?;
+            ProposalMinimumIntervalTime::<T>::set(Some(time));
+            Ok(().into())
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T: Config> GenesisConfig<T> {
+    /// Direct implementation of `GenesisBuild::build_storage`.
+    ///
+    /// Kept in order not to break dependency.
+    pub fn build_storage(&self) -> Result<sp_runtime::Storage, String> {
+        <Self as GenesisBuild<T>>::build_storage(self)
+    }
+
+    /// Direct implementation of `GenesisBuild::assimilate_storage`.
+    ///
+    /// Kept in order not to break dependency.
+    pub fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
+        <Self as GenesisBuild<T>>::assimilate_storage(self, storage)
     }
 }
 
 impl<T: Config> Pallet<T> {
-    pub fn set_new_status(
+    fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
+        let now = <TimeOf<T> as Time>::now();
+        let expiration_time = <Self as LiquidityPool<T>>::proposal_automatic_expiration_time();
+        let max_id = <Self as LiquidityPool<T>>::max_proposal_id();
+        let mut index: ProposalIdOf<T> = Zero::zero();
+        let minimum_vote = MinimumVote::<T>::get().unwrap_or_else(Zero::zero);
+        loop {
+            if index >= max_id {
+                break;
+            }
+            let start =
+                ProposalCreateTime::<T>::get(index).ok_or(Error::<T>::ProposalIdNotExist)?;
+            let end = ProposalCloseTime::<T>::get(index).ok_or(Error::<T>::ProposalIdNotExist)?;
+            let diff = now.checked_sub(&start).unwrap_or_else(Zero::zero);
+            let state = <Self as LiquidityPool<T>>::get_proposal_state(index)
+                .unwrap_or(Status::OriginalPrediction);
+            if diff > expiration_time && state == Status::OriginalPrediction {
+                let approval = ProposalCountVote::<T>::get(index, true).unwrap_or_else(Zero::zero);
+                let disapproval =
+                    ProposalCountVote::<T>::get(index, false).unwrap_or_else(Zero::zero);
+                if approval > disapproval && approval > minimum_vote {
+                    <Self as LiquidityPool<T>>::set_proposal_state(
+                        index,
+                        Status::FormalPrediction,
+                    )?;
+                } else {
+                    <Self as LiquidityPool<T>>::set_proposal_state(index, Status::End)?;
+                }
+            } else if now > end {
+                if state == Status::OriginalPrediction {
+                    <Self as LiquidityPool<T>>::set_proposal_state(index, Status::End)?;
+                } else if state == Status::FormalPrediction {
+                    <Self as LiquidityPool<T>>::set_proposal_state(
+                        index,
+                        Status::WaitingForResults,
+                    )?;
+                    ProposalAnnouncementTime::<T>::insert(index, now);
+                }
+            }
+            index = index
+                .checked_add(&One::one())
+                .ok_or(Error::<T>::ProposalIdOverflow)?;
+        }
+        Ok(0)
+    }
+
+    fn inner_stake_to(
+        who: &T::AccountId,
+        proposal_id: ProposalIdOf<T>,
+        number: BalanceOf<T>,
+        approval: bool,
+    ) -> Result<BalanceOf<T>, DispatchError> {
+        let currency_id = T::GovernanceCurrencyId::get();
+        ProposalVoteStake::<T>::try_mutate(
+            proposal_id,
+            &who,
+            |optional| -> Result<(), DispatchError> {
+                match optional {
+                    Some(_) => Err(Error::<T>::NonRrepeatableStake)?,
+                    None => {
+                        *optional = Some((number, approval));
+                        Ok(())
+                    }
+                }
+            },
+        )?;
+        ProposalCountVote::<T>::try_mutate(
+            proposal_id,
+            approval,
+            |optional| -> Result<(), DispatchError> {
+                let old = optional.unwrap_or_else(Zero::zero);
+                let new = old.checked_add(&number).ok_or(Error::<T>::VoteOverflow)?;
+                *optional = Some(new);
+                Ok(())
+            },
+        )?;
+        let number = <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)?;
+        Ok(number)
+    }
+
+    fn set_new_status(
         proposal_id: ProposalIdOf<T>,
         new_status: Status,
     ) -> Result<Status, DispatchError> {
@@ -253,11 +505,15 @@ impl<T: Config> LiquidityPool<T> for Pallet<T> {
         proposal_id: ProposalIdOf<T>,
         owner: &T::AccountId,
         state: Status,
+        create_time: MomentOf<T>,
+        close_time: MomentOf<T>,
         version: VersionIdOf<T>,
     ) {
         ProposalStatus::<T>::insert(proposal_id, state);
         ProposalOwner::<T>::insert(proposal_id, owner.clone());
         ProposalLiquidateVersionId::<T>::insert(proposal_id, version);
+        ProposalCreateTime::<T>::insert(proposal_id, create_time);
+        ProposalCloseTime::<T>::insert(proposal_id, close_time);
     }
 
     fn append_used_currency(currency_id: CurrencyIdOf<T>) {
@@ -273,7 +529,10 @@ impl<T: Config> LiquidityPool<T> for Pallet<T> {
     }
 
     fn get_proposal_state(proposal_id: ProposalIdOf<T>) -> Result<Status, DispatchError> {
-        ProposalStatus::<T>::get(proposal_id).ok_or(Err(Error::<T>::ProposalIdNotExist)?)
+        match ProposalStatus::<T>::get(proposal_id) {
+            Some(state) => Ok(state),
+            None => Err(Error::<T>::ProposalIdNotExist)?,
+        }
     }
 
     fn set_proposal_state(
@@ -292,6 +551,18 @@ impl<T: Config> LiquidityPool<T> for Pallet<T> {
     }
 
     fn proposal_owner(proposal_id: ProposalIdOf<T>) -> Result<T::AccountId, DispatchError> {
-        ProposalOwner::<T>::get(proposal_id).ok_or(Err(Error::<T>::ProposalIdNotExist)?)
+        match ProposalOwner::<T>::get(proposal_id) {
+            Some(owner) => Ok(owner),
+            None => Err(Error::<T>::ProposalIdNotExist)?,
+        }
+    }
+
+    fn proposal_announcement_time(
+        proposal_id: ProposalIdOf<T>,
+    ) -> Result<MomentOf<T>, DispatchError> {
+        match ProposalAnnouncementTime::<T>::get(proposal_id) {
+            Some(time) => Ok(time),
+            None => Err(Error::<T>::ProposalIdNotExist)?,
+        }
     }
 }

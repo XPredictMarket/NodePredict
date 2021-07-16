@@ -1,9 +1,5 @@
 use crate::{self as couple, Error};
-use frame_support::{
-    dispatch::DispatchError,
-    parameter_types,
-    traits::{Hooks, Time},
-};
+use frame_support::{dispatch::DispatchError, parameter_types, traits::Time};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
@@ -122,6 +118,7 @@ pub struct ProposalsWrapper {
     pub used_currency_id: HashMap<CurrencyIdOf<Test>, ()>,
     pub proposal_state: HashMap<ProposalIdOf<Test>, ProposalStatus>,
     pub proposal_owner: HashMap<ProposalIdOf<Test>, AccountId>,
+    pub announcement_time: HashMap<ProposalIdOf<Test>, MomentOf<Test>>,
 }
 
 impl ProposalsWrapper {
@@ -129,6 +126,7 @@ impl ProposalsWrapper {
         ProposalsWrapper {
             next_proposal_id: 0,
             interval_time: 5,
+            announcement_time: HashMap::<ProposalIdOf<Test>, MomentOf<Test>>::new(),
             used_currency_id: HashMap::<CurrencyIdOf<Test>, ()>::new(),
             proposal_state: HashMap::<ProposalIdOf<Test>, ProposalStatus>::new(),
             proposal_owner: HashMap::<ProposalIdOf<Test>, AccountId>::new(),
@@ -137,12 +135,6 @@ impl ProposalsWrapper {
 }
 
 pub struct Proposals;
-
-impl Proposals {
-    pub fn set_proposal_minimum_interval_time(t: MomentOf<Test>) {
-        PROPOSALS_WRAPPER.with(|wrapper| -> () { wrapper.borrow_mut().interval_time = t })
-    }
-}
 
 impl LiquidityPool<Test> for Proposals {
     fn get_proposal_minimum_interval_time() -> MomentOf<Test> {
@@ -168,6 +160,8 @@ impl LiquidityPool<Test> for Proposals {
         proposal_id: ProposalIdOf<Test>,
         owner: &AccountId,
         state: ProposalStatus,
+        _create_time: MomentOf<Test>,
+        _close_time: MomentOf<Test>,
         _version: VersionIdOf<Test>,
     ) {
         PROPOSALS_WRAPPER.with(|wrapper| -> () {
@@ -240,6 +234,17 @@ impl LiquidityPool<Test> for Proposals {
             }
         })
     }
+
+    fn proposal_announcement_time(
+        proposal_id: ProposalIdOf<Test>,
+    ) -> Result<MomentOf<Test>, DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
+            match wrapper.borrow().announcement_time.get(&proposal_id) {
+                Some(v) => Ok(*v),
+                None => Err("ProposalIdNotExist")?,
+            }
+        })
+    }
 }
 
 type ProposalId = u32;
@@ -262,16 +267,6 @@ impl couple::Config for Test {
     type Event = Event;
     type Pool = Proposals;
     type CurrentLiquidateVersionId = CurrentLiquidateVersionId;
-}
-
-pub fn run_to_block<Module: Hooks<BlockNumber>>(n: u64) {
-    while System::block_number() < n {
-        Module::on_finalize(System::block_number());
-        System::on_finalize(System::block_number());
-        System::set_block_number(System::block_number() + 1);
-        System::on_initialize(System::block_number());
-        Module::on_initialize(System::block_number());
-    }
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
