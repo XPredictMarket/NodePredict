@@ -35,8 +35,7 @@ thread_local! {
 
 pub struct Timestamp;
 impl Time for Timestamp {
-    type Moment = u64;
-
+    type Moment = BlockNumber;
     fn now() -> Self::Moment {
         System::block_number()
     }
@@ -184,17 +183,6 @@ impl ProposalsWrapper {
 pub struct Proposals;
 
 impl Proposals {
-    pub fn get_proposal_result(
-        proposal_id: ProposalIdOf<Test>,
-    ) -> Result<CurrencyIdOf<Test>, DispatchError> {
-        PROPOSALS_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
-            match wrapper.borrow().proposal_result.get(&proposal_id) {
-                Some(val) => Ok(*val),
-                None => Err("ProposalIdNotExist")?,
-            }
-        })
-    }
-
     pub fn set_announcement_time(
         proposal_id: ProposalIdOf<Test>,
         time: MomentOf<Test>,
@@ -332,14 +320,6 @@ impl LiquidityPool<Test> for Proposals {
         })
     }
 
-    fn get_earn_trading_fee_decimals() -> u8 {
-        4
-    }
-
-    fn proposal_liquidity_provider_fee_rate() -> u32 {
-        200
-    }
-
     fn proposal_owner(proposal_id: ProposalIdOf<Test>) -> Result<AccountId, DispatchError> {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<AccountId, DispatchError> {
             match wrapper.borrow().proposal_owner.get(&proposal_id) {
@@ -397,6 +377,17 @@ impl LiquidityCouple<Test> for Proposals {
     ) -> Result<CurrencyIdOf<Test>, DispatchError> {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
             match wrapper.borrow().proposal_lp.get(&proposal_id) {
+                Some(val) => Ok(*val),
+                None => Err("ProposalIdNotExist")?,
+            }
+        })
+    }
+
+    fn get_proposal_result(
+        proposal_id: ProposalIdOf<Test>,
+    ) -> Result<CurrencyIdOf<Test>, DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
+            match wrapper.borrow().proposal_result.get(&proposal_id) {
                 Some(val) => Ok(*val),
                 None => Err("ProposalIdNotExist")?,
             }

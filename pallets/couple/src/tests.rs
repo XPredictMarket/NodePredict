@@ -26,7 +26,7 @@ fn create_proposal(
         rate,
         "proposal detail".as_bytes().to_vec(),
     ));
-    <Proposals as LiquidityPool<Test>>::max_proposal_id() - 1
+    <ProposalsWrapper as LiquidityPool<Test>>::max_proposal_id() - 1
 }
 
 #[test]
@@ -77,10 +77,12 @@ fn test_add_liquidity() {
             CoupleModule::add_liquidity(Origin::signed(other_account), id, next_number),
             Error::<Test>::ProposalAbnormalState
         );
-        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
-            id,
-            ProposalState::FormalPrediction
-        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::FormalPrediction
+            )
+        );
         assert_ok!(CoupleModule::add_liquidity(
             Origin::signed(other_account),
             id,
@@ -125,10 +127,12 @@ fn test_remove_liquidity() {
         let other_account: AccountId = 2;
         let number: BalanceOf<Test> = 100000;
         let id = create_proposal(account, 1, number, 2000, 10);
-        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
-            id,
-            ProposalState::FormalPrediction
-        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::FormalPrediction
+            )
+        );
         assert_ok!(CoupleModule::buy(
             Origin::signed(other_account),
             id,
@@ -139,10 +143,12 @@ fn test_remove_liquidity() {
             CoupleModule::remove_liquidity(Origin::signed(account), id, number),
             Error::<Test>::ProposalAbnormalState
         );
-        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
-            id,
-            ProposalState::WaitingForResults
-        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::WaitingForResults
+            )
+        );
         assert_ok!(CoupleModule::set_result(Origin::root(), id, 3));
         assert_noop!(
             CoupleModule::remove_liquidity(Origin::signed(account), 1, number),
@@ -180,10 +186,12 @@ fn test_buy() {
             CoupleModule::buy(Origin::signed(other_account), id + 1, 3, 31250),
             Error::<Test>::ProposalIdNotExist
         );
-        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
-            id,
-            ProposalState::FormalPrediction
-        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::FormalPrediction
+            )
+        );
         assert_noop!(
             CoupleModule::buy(Origin::signed(other_account), id, 5, 31250),
             Error::<Test>::CurrencyIdNotFound
@@ -228,10 +236,12 @@ fn test_sell() {
             CoupleModule::sell(Origin::signed(other_account), id + 1, 3, 255),
             Error::<Test>::ProposalIdNotExist
         );
-        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
-            id,
-            ProposalState::FormalPrediction
-        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::FormalPrediction
+            )
+        );
         assert_noop!(
             CoupleModule::sell(Origin::signed(other_account), id, 5, 255),
             Error::<Test>::CurrencyIdNotFound
@@ -283,28 +293,31 @@ fn test_retrieval() {
             CoupleModule::retrieval(Origin::signed(account), id, 3, number),
             Error::<Test>::ProposalAbnormalState
         );
-        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
-            id,
-            ProposalState::End
-        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(id, ProposalState::End)
+        );
         assert_noop!(
             CoupleModule::retrieval(Origin::signed(account), id, 3, number),
             Error::<Test>::ProposalNotResult
         );
-        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
-            id,
-            ProposalState::FormalPrediction
-        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::FormalPrediction
+            )
+        );
         assert_ok!(CoupleModule::buy(
             Origin::signed(other_account),
             id,
             3,
             31250
         ));
-        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
-            id,
-            ProposalState::WaitingForResults
-        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::WaitingForResults
+            )
+        );
         assert_ok!(CoupleModule::set_result(Origin::root(), id, 3));
         assert_ok!(CoupleModule::remove_liquidity(
             Origin::signed(account),
@@ -328,26 +341,31 @@ fn test_retrieval() {
             3,
             number
         ));
-        let retrieval_event = Event::couple(crate::Event::Retrieval(other_account, id, 3, 45000));
+        let retrieval_event = Event::couple(crate::Event::Retrieval(other_account, id, 3, 44775));
         assert!(System::events()
             .iter()
             .any(|record| record.event == retrieval_event));
 
         assert_eq!(XPMRLTokens::free_balance_of(account, 1), Some(86250));
-        assert_eq!(XPMRLTokens::free_balance_of(other_account, 1), Some(45000));
+        assert_eq!(XPMRLTokens::free_balance_of(other_account, 1), Some(44775));
         assert_eq!(CoupleModule::proposal_total_market(0), Some(0));
     });
 }
+
+#[test]
+fn test_withdrawal_reward() {}
 
 #[test]
 fn test_set_result() {
     new_test_ext().execute_with(|| {
         let id = create_proposal(1, 1, 100000, 200, 10);
 
-        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
-            id,
-            ProposalState::WaitingForResults
-        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::WaitingForResults
+            )
+        );
         assert_noop!(
             CoupleModule::set_result(Origin::root(), id, 5),
             Error::<Test>::CurrencyIdNotFound
@@ -359,7 +377,7 @@ fn test_set_result() {
             .iter()
             .any(|record| record.event == set_result_event));
         assert_eq!(
-            <Proposals as LiquidityPool<Test>>::get_proposal_state(id),
+            <ProposalsWrapper as LiquidityPool<Test>>::get_proposal_state(id),
             Ok(ProposalState::End)
         );
     });

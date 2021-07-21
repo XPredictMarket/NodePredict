@@ -37,9 +37,6 @@ where
         new_state: ProposalStatus,
     ) -> Result<ProposalStatus, DispatchError>;
 
-    fn get_earn_trading_fee_decimals() -> u8;
-    fn proposal_liquidity_provider_fee_rate() -> u32;
-
     fn proposal_owner(proposal_id: ProposalIdOf<T>) -> Result<T::AccountId, DispatchError>;
     fn proposal_announcement_time(
         proposal_id: ProposalIdOf<T>,

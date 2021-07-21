@@ -33,7 +33,9 @@ use frame_support::{
     ensure,
     traits::{Get, Time},
 };
-use sp_runtime::traits::{CheckedAdd, CheckedSub, One, Zero};
+use sp_runtime::traits::{
+    AccountIdConversion, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, One, Zero,
+};
 use xpmrl_traits::{
     pool::{LiquidityPool, LiquiditySubPool},
     tokens::Tokens,
@@ -44,7 +46,7 @@ use xpmrl_traits::{
 pub mod pallet {
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
     use frame_system::pallet_prelude::*;
-    use sp_runtime::traits::Zero;
+    use sp_runtime::{traits::Zero, ModuleId};
     use xpmrl_traits::{
         pool::{LiquidityPool, LiquiditySubPool},
         system::ProposalSystem,
@@ -73,12 +75,11 @@ pub mod pallet {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
         type SubPool: LiquiditySubPool<Self>;
 
-        /// Decimals of fee
-        #[pallet::constant]
-        type EarnTradingFeeDecimals: Get<u8>;
-
         #[pallet::constant]
         type GovernanceCurrencyId: Get<CurrencyIdOf<Self>>;
+
+        #[pallet::constant]
+        type RewardId: Get<ModuleId>;
     }
 
     #[pallet::pallet]
@@ -148,11 +149,6 @@ pub mod pallet {
     #[pallet::getter(fn proposal_minimum_interval_time)]
     pub type ProposalMinimumIntervalTime<T: Config> = StorageValue<_, MomentOf<T>>;
 
-    /// The percentage of the commission that the creator of the proposal can get.
-    #[pallet::storage]
-    #[pallet::getter(fn proposal_liquidity_provider_fee_rate)]
-    pub type ProposalLiquidityProviderFeeRate<T: Config> = StorageValue<_, u32>;
-
     /// Stores the number of governance tokens pledged by users on a proposal
     ///
     /// `bool` means approval or disapproval
@@ -193,12 +189,24 @@ pub mod pallet {
     #[pallet::getter(fn minimum_vote)]
     pub type MinimumVote<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
 
+    /// The default reward value is used to set the default value when creating a proposal. If no
+    /// reward is needed later, it can be set to 0
+    #[pallet::storage]
+    #[pallet::getter(fn default_reward)]
+    pub type DefaultReward<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
+
+    /// The total amount of rewards given to voters when each proposal becomes a formal proposal
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_reward)]
+    pub type ProposalReward<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>, OptionQuery>;
+
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub expiration_time: u32,
-        pub liquidity_provider_fee_rate: u32,
         pub minimum_interval_time: u32,
         pub minimum_vote: BalanceOf<T>,
+        pub default_reward: BalanceOf<T>,
     }
 
     #[cfg(feature = "std")]
@@ -207,9 +215,9 @@ pub mod pallet {
             Self {
                 /// one week
                 expiration_time: 7 * 24 * 60 * 60 * 1000,
-                liquidity_provider_fee_rate: 9000,
                 minimum_interval_time: 10 * 60 * 1000,
                 minimum_vote: Zero::zero(),
+                default_reward: Zero::zero(),
             }
         }
     }
@@ -218,9 +226,9 @@ pub mod pallet {
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
             ProposalAutomaticExpirationTime::<T>::set(Some(self.expiration_time.into()));
-            ProposalLiquidityProviderFeeRate::<T>::set(Some(self.liquidity_provider_fee_rate));
             ProposalMinimumIntervalTime::<T>::set(Some(self.minimum_interval_time.into()));
             MinimumVote::<T>::set(Some(self.minimum_vote));
+            DefaultReward::<T>::set(Some(self.default_reward));
         }
     }
 
@@ -231,6 +239,9 @@ pub mod pallet {
         ProposalStatusChanged(ProposalIdOf<T>, Status),
         StakeTo(T::AccountId, ProposalIdOf<T>, BalanceOf<T>),
         UnStakeFrom(T::AccountId, ProposalIdOf<T>, BalanceOf<T>),
+        DepositReward(T::AccountId, T::AccountId, BalanceOf<T>),
+        ReclaimReward(T::AccountId, T::AccountId, BalanceOf<T>),
+        WithdrawalReward(T::AccountId, ProposalIdOf<T>, BalanceOf<T>),
     }
 
     #[pallet::error]
@@ -248,6 +259,8 @@ pub mod pallet {
         VoteOverflow,
         /// Proposal owners are not allowed to submit their own proposals
         OwnerNotAllowedVote,
+        ProposalAbnormalVote,
+        AccountNotStake,
     }
 
     #[pallet::hooks]
@@ -300,7 +313,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             proposal_id: ProposalIdOf<T>,
             number: BalanceOf<T>,
-            approval: bool,
+            opinion: bool,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
             let state = <Self as LiquidityPool<T>>::get_proposal_state(proposal_id)?;
@@ -311,12 +324,16 @@ pub mod pallet {
             let owner = <Self as LiquidityPool<T>>::proposal_owner(proposal_id)?;
             ensure!(who != owner, Error::<T>::OwnerNotAllowedVote);
             let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
-                Self::inner_stake_to(&who, proposal_id, number, approval)
+                Self::inner_stake_to(&who, proposal_id, number, opinion)
             })?;
             Self::deposit_event(Event::<T>::StakeTo(who, proposal_id, number));
             Ok(().into())
         }
 
+        /// Withdraw the stake, after the proposal status changes, the staked coins can be
+        /// withdrawn
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
         pub fn unstake_from(
             origin: OriginFor<T>,
@@ -350,6 +367,86 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// If the proposal becomes a formal proposal, the users who voted for it can withdraw the
+        /// corresponding reward
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn withdrawal_reward(
+            origin: OriginFor<T>,
+            proposal_id: ProposalIdOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let state = <Self as LiquidityPool<T>>::get_proposal_state(proposal_id)?;
+            ensure!(
+                state != Status::OriginalPrediction,
+                Error::<T>::ProposalAbnormalState
+            );
+            let minimum_vote = MinimumVote::<T>::get().unwrap_or_else(Zero::zero);
+            let approval =
+                ProposalCountVote::<T>::get(proposal_id, true).unwrap_or_else(Zero::zero);
+            let disapproval =
+                ProposalCountVote::<T>::get(proposal_id, false).unwrap_or_else(Zero::zero);
+            ensure!(
+                approval > disapproval && approval > minimum_vote,
+                Error::<T>::ProposalAbnormalVote
+            );
+            let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
+                Self::inner_withdrawal_reward(&who, proposal_id, approval)
+            })?;
+            Self::deposit_event(Event::<T>::WithdrawalReward(who, proposal_id, number));
+            Ok(().into())
+        }
+
+        /// Deposit the reward amount, this is usually called by the project party, this amount
+        /// will be used to issue the corresponding reward
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn deposit_reward(
+            origin: OriginFor<T>,
+            number: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let currency_id = T::GovernanceCurrencyId::get();
+            let reward_account = Self::module_account();
+            let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
+                <TokensOf<T> as Tokens<T::AccountId>>::transfer(
+                    currency_id,
+                    &who,
+                    &reward_account,
+                    number,
+                )
+            })?;
+            Self::deposit_event(Event::<T>::DepositReward(who, reward_account, number));
+            Ok(().into())
+        }
+
+        /// Reclaim unused rewards
+        ///
+        /// The dispatch origin for this call is `root`.
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn reclaim_reward(
+            origin: OriginFor<T>,
+            to: T::AccountId,
+        ) -> DispatchResultWithPostInfo {
+            let _ = ensure_root(origin)?;
+            let currency_id = T::GovernanceCurrencyId::get();
+            let reward_account = Self::module_account();
+            let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
+                let number =
+                    <TokensOf<T> as Tokens<T::AccountId>>::balance(currency_id, &reward_account);
+                <TokensOf<T> as Tokens<T::AccountId>>::transfer(
+                    currency_id,
+                    &reward_account,
+                    &to,
+                    number,
+                )
+            })?;
+            Self::deposit_event(Event::<T>::ReclaimReward(reward_account, to, number));
+            Ok(().into())
+        }
+
         #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
         pub fn set_proposal_minimum_interval_time(
             origin: OriginFor<T>,
@@ -357,6 +454,16 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let _ = ensure_root(origin)?;
             ProposalMinimumIntervalTime::<T>::set(Some(time));
+            Ok(().into())
+        }
+
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn set_default_reward(
+            origin: OriginFor<T>,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let _ = ensure_root(origin)?;
+            DefaultReward::<T>::set(Some(value));
             Ok(().into())
         }
     }
@@ -380,6 +487,10 @@ impl<T: Config> GenesisConfig<T> {
 }
 
 impl<T: Config> Pallet<T> {
+    fn module_account() -> T::AccountId {
+        T::RewardId::get().into_account()
+    }
+
     fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
         let now = <TimeOf<T> as Time>::now();
         let expiration_time = <Self as LiquidityPool<T>>::proposal_automatic_expiration_time();
@@ -430,7 +541,7 @@ impl<T: Config> Pallet<T> {
         who: &T::AccountId,
         proposal_id: ProposalIdOf<T>,
         number: BalanceOf<T>,
-        approval: bool,
+        opinion: bool,
     ) -> Result<BalanceOf<T>, DispatchError> {
         let currency_id = T::GovernanceCurrencyId::get();
         ProposalVoteStake::<T>::try_mutate(
@@ -440,7 +551,7 @@ impl<T: Config> Pallet<T> {
                 match optional {
                     Some(_) => Err(Error::<T>::NonRrepeatableStake)?,
                     None => {
-                        *optional = Some((number, approval));
+                        *optional = Some((number, opinion));
                         Ok(())
                     }
                 }
@@ -448,7 +559,7 @@ impl<T: Config> Pallet<T> {
         )?;
         ProposalCountVote::<T>::try_mutate(
             proposal_id,
-            approval,
+            opinion,
             |optional| -> Result<(), DispatchError> {
                 let old = optional.unwrap_or_else(Zero::zero);
                 let new = old.checked_add(&number).ok_or(Error::<T>::VoteOverflow)?;
@@ -458,6 +569,34 @@ impl<T: Config> Pallet<T> {
         )?;
         let number = <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)?;
         Ok(number)
+    }
+
+    fn inner_withdrawal_reward(
+        who: &T::AccountId,
+        proposal_id: ProposalIdOf<T>,
+        approval: BalanceOf<T>,
+    ) -> Result<BalanceOf<T>, DispatchError> {
+        let (number, opinion) =
+            ProposalVoteStake::<T>::get(proposal_id, &who).ok_or(Error::<T>::AccountNotStake)?;
+        let total = ProposalReward::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+        let base: BalanceOf<T> = 100u32.into();
+        let currency_id = T::GovernanceCurrencyId::get();
+        let reward_account = Self::module_account();
+        match opinion {
+            true => {
+                let number = number * base;
+                let number = number.checked_div(&approval).unwrap_or_else(Zero::zero);
+                let number = number.checked_mul(&total).unwrap_or_else(Zero::zero);
+                let number = number.checked_div(&base).unwrap_or_else(Zero::zero);
+                <TokensOf<T> as Tokens<T::AccountId>>::transfer(
+                    currency_id,
+                    &reward_account,
+                    &who,
+                    number,
+                )
+            }
+            false => Ok(Zero::zero()),
+        }
     }
 
     fn set_new_status(
@@ -514,6 +653,8 @@ impl<T: Config> LiquidityPool<T> for Pallet<T> {
         ProposalLiquidateVersionId::<T>::insert(proposal_id, version);
         ProposalCreateTime::<T>::insert(proposal_id, create_time);
         ProposalCloseTime::<T>::insert(proposal_id, close_time);
+        let default_reward = DefaultReward::<T>::get().unwrap_or_else(Zero::zero);
+        ProposalReward::<T>::insert(proposal_id, default_reward);
     }
 
     fn append_used_currency(currency_id: CurrencyIdOf<T>) {
@@ -540,14 +681,6 @@ impl<T: Config> LiquidityPool<T> for Pallet<T> {
         new_state: Status,
     ) -> Result<Status, DispatchError> {
         Self::set_new_status(proposal_id, new_state)
-    }
-
-    fn get_earn_trading_fee_decimals() -> u8 {
-        T::EarnTradingFeeDecimals::get()
-    }
-
-    fn proposal_liquidity_provider_fee_rate() -> u32 {
-        ProposalLiquidityProviderFeeRate::<T>::get().unwrap_or_else(Zero::zero)
     }
 
     fn proposal_owner(proposal_id: ProposalIdOf<T>) -> Result<T::AccountId, DispatchError> {

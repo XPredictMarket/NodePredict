@@ -35,40 +35,26 @@ mod tests;
 
 /// Import macros about storage-related operations
 pub(crate) mod macros;
+pub(crate) mod tools;
 
-use frame_support::{
-    ensure,
-    traits::{Get, Time},
-};
+use frame_support::traits::Get;
 use frame_system::RawOrigin;
-use num_traits::pow::pow;
-use sp_runtime::{
-    traits::{CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, IntegerSquareRoot, One, Zero},
-    DispatchError,
-};
-use sp_std::vec::Vec;
-use xpmrl_traits::{
-    couple::LiquidityCouple,
-    pool::{LiquidityPool, LiquiditySubPool},
-    tokens::Tokens,
-    ProposalStatus,
-};
-use xpmrl_utils::{runtime_format, storage_try_mutate};
+use sp_runtime::DispatchError;
+use xpmrl_traits::{couple::LiquidityCouple, pool::LiquiditySubPool};
 
 #[frame_support::pallet]
 pub mod pallet {
-    use super::{
-        proposal_total_market_fee_try_mutate, proposal_total_market_liquid_try_mutate,
-        proposal_total_market_try_mutate, proposal_total_optional_market_try_mutate, value_changed,
-    };
+    use super::*;
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
     use frame_system::pallet_prelude::*;
-    use sp_runtime::traits::{CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, Zero};
-    use sp_std::{cmp, vec::Vec};
+    use num_traits::CheckedAdd;
+    use sp_runtime::traits::{CheckedSub, Zero};
+    use sp_std::vec::Vec;
     use xpmrl_traits::{
-        pool::LiquidityPool, system::ProposalSystem, tokens::Tokens, ProposalStatus,
+        autonomy::Autonomy, pool::LiquidityPool, ruler::RulerAccounts, system::ProposalSystem,
+        tokens::Tokens, ProposalStatus, RulerModule,
     };
-    use xpmrl_utils::{storage_try_mutate, sub_abs, with_transaction_result};
+    use xpmrl_utils::{storage_try_mutate, with_transaction_result};
 
     pub(crate) type TokensOf<T> =
         <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
@@ -116,6 +102,12 @@ pub mod pallet {
     {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
         type Pool: LiquidityPool<Self>;
+        type Ruler: RulerAccounts<Self>;
+        type Autonomy: Autonomy<Self>;
+
+        /// Decimals of fee
+        #[pallet::constant]
+        type EarnTradingFeeDecimals: Get<u8>;
 
         #[pallet::constant]
         type CurrentLiquidateVersionId: Get<VersionIdOf<Self>>;
@@ -242,6 +234,48 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// The percentage of the commission that the creator of the proposal can get.
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_liquidity_provider_fee_rate)]
+    pub type ProposalLiquidityProviderFeeRate<T: Config> = StorageValue<_, u32, OptionQuery>;
+
+    /// After the prediction is successful, the withdrawal fee rate charged at the time of
+    /// liquidation
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_withdrawal_fee_rate)]
+    pub type ProposalWithdrawalFeeRate<T: Config> = StorageValue<_, u32, OptionQuery>;
+
+    /// After the proposal is over, when the user is clearing, the total settlement currency reward
+    /// that the node that participates in providing the result can obtain
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_autonomy_reward)]
+    pub type ProposalAutonomyReward<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>, OptionQuery>;
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig {
+        pub liquidity_provider_fee_rate: u32,
+        pub withdrawal_fee_rate: u32,
+    }
+
+    #[cfg(feature = "std")]
+    impl Default for GenesisConfig {
+        fn default() -> Self {
+            Self {
+                liquidity_provider_fee_rate: 9000,
+                withdrawal_fee_rate: 50,
+            }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig {
+        fn build(&self) {
+            ProposalLiquidityProviderFeeRate::<T>::set(Some(self.liquidity_provider_fee_rate));
+            ProposalWithdrawalFeeRate::<T>::set(Some(self.withdrawal_fee_rate));
+        }
+    }
+
     #[pallet::event]
     #[pallet::metadata(T::AccountId = "AccountId")]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -282,6 +316,8 @@ pub mod pallet {
         CurrencyIdNotAllowed,
         /// The proposal id has reached the upper limit
         ProposalIdOverflow,
+        /// What the user uploaded is not the correct result
+        UploadedNotResult,
     }
 
     #[pallet::hooks]
@@ -320,22 +356,16 @@ pub mod pallet {
             );
             let proposal_id = with_transaction_result(|| {
                 let proposal_id = T::Pool::get_next_proposal_id()?;
-                let (yes_id, no_id, lp_id) = Self::init_pool(
+                Self::init_pool(
                     &who,
                     proposal_id,
                     title,
                     close_time,
                     category_id,
-                    currency_id,
-                    optional,
-                    number,
                     earn_fee,
                     detail,
                 )?;
-                T::Pool::append_used_currency(yes_id);
-                T::Pool::append_used_currency(no_id);
-                T::Pool::append_used_currency(lp_id);
-                Ok(proposal_id)
+                Self::new_currency(&who, proposal_id, currency_id, number, optional)
             })?;
             Self::deposit_event(Event::NewProposal(who, proposal_id, currency_id));
             Ok(().into())
@@ -363,24 +393,15 @@ pub mod pallet {
             let liquidate_currency_id = ProposalLiquidateCurrencyId::<T>::get(proposal_id)
                 .ok_or(Error::<T>::ProposalIdNotExist)?;
             with_transaction_result(|| {
-                <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, &who, number)?;
-                <TokensOf<T> as Tokens<T::AccountId>>::mint_donate(asset_id_1, number)?;
-                <TokensOf<T> as Tokens<T::AccountId>>::mint_donate(asset_id_2, number)?;
-                <TokensOf<T> as Tokens<T::AccountId>>::mint(liquidate_currency_id, &who, number)?;
-                proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
-                    let new_o1 = o1.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?;
-                    let new_o2 = o2.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?;
-                    (new_o1, new_o2)
-                })?;
-                proposal_total_market_liquid_try_mutate!(
+                Self::inner_add_liquidity(
+                    &who,
                     proposal_id,
-                    old_value,
-                    old_value
-                        .checked_add(&number)
-                        .ok_or(Error::<T>::BalanceOverflow)?
-                )?;
-                Self::total_and_account_add(proposal_id, &who, number)?;
-                Ok(())
+                    currency_id,
+                    asset_id_1,
+                    asset_id_2,
+                    liquidate_currency_id,
+                    number,
+                )
             })?;
             Self::deposit_event(Event::AddLiquidity(who, proposal_id, currency_id, number));
             Ok(().into())
@@ -411,63 +432,17 @@ pub mod pallet {
                 ProposalFinallyTotalOptionalMarket::<T>::get(proposal_id)
                     .ok_or(Error::<T>::ProposalIdNotExist)?;
             with_transaction_result(|| {
-                <TokensOf<T> as Tokens<T::AccountId>>::burn(liquidate_currency_id, &who, number)?;
-                proposal_total_market_liquid_try_mutate!(
+                Self::inner_remove_liquidity(
+                    &who,
                     proposal_id,
-                    old_value,
-                    old_value.checked_sub(&number).unwrap_or_else(Zero::zero)
-                )?;
-                let total_liquid =
-                    ProposalFinallyMarketLiquid::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
-                let fee = Self::get_fee_of_liquid(proposal_id, number, total_liquid)?;
-                let creater_fee = Self::get_fee_of_creator(&who, proposal_id)?;
-                let fee = fee
-                    .checked_add(&creater_fee)
-                    .ok_or(Error::<T>::BalanceOverflow)?;
-                proposal_total_market_fee_try_mutate!(
-                    proposal_id,
-                    old_value,
-                    old_value.checked_sub(&fee).unwrap_or_else(Zero::zero)
-                )?;
-                let (o1, o2) = proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
-                    let new_o1 = finally_o1
-                        .checked_mul(&number)
-                        .ok_or(Error::<T>::BalanceOverflow)?;
-                    let new_o1 = new_o1
-                        .checked_div(&total_liquid)
-                        .ok_or(Error::<T>::BalanceOverflow)?;
-                    let new_o1 = o1.checked_sub(&new_o1).unwrap_or_else(Zero::zero);
-
-                    let new_o2 = finally_o2
-                        .checked_mul(&number)
-                        .ok_or(Error::<T>::BalanceOverflow)?;
-                    let new_o2 = new_o2
-                        .checked_div(&total_liquid)
-                        .ok_or(Error::<T>::BalanceOverflow)?;
-                    let new_o2 = o2.checked_sub(&new_o2).unwrap_or_else(Zero::zero);
-                    (new_o1, new_o2)
-                })?;
-                let min = cmp::min(o1, o2);
-                <TokensOf<T> as Tokens<T::AccountId>>::burn_donate(asset_id_1, min)?;
-                <TokensOf<T> as Tokens<T::AccountId>>::burn_donate(asset_id_2, min)?;
-                Self::total_and_account_sub(proposal_id, &who, min)?;
-                let actual_amount = min.checked_add(&fee).ok_or(Error::<T>::BalanceOverflow)?;
-                <TokensOf<T> as Tokens<T::AccountId>>::appropriation(
                     currency_id,
-                    &who,
-                    actual_amount,
-                )?;
-                <TokensOf<T> as Tokens<T::AccountId>>::appropriation(
+                    liquidate_currency_id,
                     asset_id_1,
-                    &who,
-                    o1.checked_sub(&min).unwrap_or_else(Zero::zero),
-                )?;
-                <TokensOf<T> as Tokens<T::AccountId>>::appropriation(
                     asset_id_2,
-                    &who,
-                    o2.checked_sub(&min).unwrap_or_else(Zero::zero),
-                )?;
-                Ok(())
+                    number,
+                    finally_o1,
+                    finally_o2,
+                )
             })?;
             Self::deposit_event(Event::RemoveLiquidity(
                 who,
@@ -499,38 +474,14 @@ pub mod pallet {
             ensure_optional_id_belong_proposal!(optional_currency_id, proposal_id);
             let other_currency = Self::get_other_optional_id(proposal_id, optional_currency_id)?;
             let actual_number = with_transaction_result(|| {
-                let (actual_number, fee) = Self::get_fee(proposal_id, number)?;
-                <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, &who, number)?;
-                <TokensOf<T> as Tokens<T::AccountId>>::mint(
-                    optional_currency_id,
+                Self::inner_buy(
                     &who,
-                    actual_number,
-                )?;
-                <TokensOf<T> as Tokens<T::AccountId>>::mint_donate(
-                    other_currency.1,
-                    actual_number,
-                )?;
-                let (d1, d2) = proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
-                    let old_pair = [o1, o2];
-                    let new_pair =
-                        Self::add_and_adjust_pool(other_currency.0, actual_number, &old_pair)?;
-                    (new_pair[0], new_pair[1])
-                })?;
-                let diff = [d1, d2][1 - other_currency.0];
-                Self::total_and_account_add(proposal_id, &who, actual_number)?;
-                proposal_total_market_fee_try_mutate!(
                     proposal_id,
-                    old_value,
-                    old_value
-                        .checked_add(&fee)
-                        .ok_or(Error::<T>::BalanceOverflow)?
-                )?;
-                <TokensOf<T> as Tokens<T::AccountId>>::appropriation(
+                    currency_id,
                     optional_currency_id,
-                    &who,
-                    diff,
-                )?;
-                Ok(actual_number)
+                    number,
+                    other_currency,
+                )
             })?;
             Self::deposit_event(Event::Buy(
                 who,
@@ -562,55 +513,14 @@ pub mod pallet {
             ensure_optional_id_belong_proposal!(optional_currency_id, proposal_id);
             let other_currency = Self::get_other_optional_id(proposal_id, optional_currency_id)?;
             let actual_number = with_transaction_result(|| {
-                <TokensOf<T> as Tokens<T::AccountId>>::donate(optional_currency_id, &who, number)?;
-                let (d1, d2) = proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
-                    let old_pair = [o1, o2];
-                    let actual_number = Self::get_sell_result(
-                        proposal_id,
-                        &old_pair,
-                        number,
-                        optional_currency_id,
-                    )?;
-                    let new_pair =
-                        Self::add_and_adjust_pool(1 - other_currency.0, actual_number, &old_pair)?;
-                    (new_pair[0], new_pair[1])
-                })?;
-                let diff = [d1, d2];
-                let last_select_currency = number
-                    .checked_sub(&diff[1 - other_currency.0])
-                    .unwrap_or_else(Zero::zero);
-                let acquired_currency = diff[other_currency.0];
-                let min = cmp::min(last_select_currency, acquired_currency);
-                <TokensOf<T> as Tokens<T::AccountId>>::burn_donate(other_currency.1, min)?;
-                let (actual_number, fee) = Self::get_fee(proposal_id, min)?;
-                proposal_total_market_fee_try_mutate!(
+                Self::inner_sell(
+                    &who,
                     proposal_id,
-                    old_value,
-                    old_value
-                        .checked_add(&fee)
-                        .ok_or(Error::<T>::BalanceOverflow)?
-                )?;
-                Self::total_and_account_sub(proposal_id, &who, min)?;
-                <TokensOf<T> as Tokens<T::AccountId>>::appropriation(
                     currency_id,
-                    &who,
-                    actual_number,
-                )?;
-                <TokensOf<T> as Tokens<T::AccountId>>::appropriation(
                     optional_currency_id,
-                    &who,
-                    last_select_currency
-                        .checked_sub(&min)
-                        .unwrap_or_else(Zero::zero),
-                )?;
-                <TokensOf<T> as Tokens<T::AccountId>>::appropriation(
-                    other_currency.1,
-                    &who,
-                    acquired_currency
-                        .checked_sub(&min)
-                        .unwrap_or_else(Zero::zero),
-                )?;
-                Ok(actual_number)
+                    number,
+                    other_currency,
+                )
             })?;
             Self::deposit_event(Event::Sell(
                 who,
@@ -644,27 +554,53 @@ pub mod pallet {
                 <TokensOf<T> as Tokens<T::AccountId>>::balance(optional_currency_id, &who);
             ensure!(balance >= Zero::zero(), Error::<T>::InsufficientBalance);
             let number = if number >= balance { balance } else { number };
-            if optional_currency_id == result_id {
-                let currency_id = ProposalCurrencyId::<T>::get(proposal_id)
-                    .ok_or(Error::<T>::ProposalIdNotExist)?;
-                with_transaction_result(|| {
+            let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
+                if optional_currency_id == result_id {
+                    let currency_id = ProposalCurrencyId::<T>::get(proposal_id)
+                        .ok_or(Error::<T>::ProposalIdNotExist)?;
                     proposal_total_market_try_mutate!(
                         proposal_id,
                         old_amount,
                         old_amount.checked_sub(&number).unwrap_or_else(Zero::zero)
                     )?;
                     <TokensOf<T> as Tokens<T::AccountId>>::burn(result_id, &who, number)?;
-                    <TokensOf<T> as Tokens<T::AccountId>>::appropriation(
-                        currency_id,
-                        &who,
-                        number,
+                    let (number, reward, dividends) = Self::get_withdrawal_fee(number);
+                    ProposalAutonomyReward::<T>::try_mutate(
+                        proposal_id,
+                        |optional| -> Result<(), DispatchError> {
+                            let old = optional.unwrap_or_else(Zero::zero);
+                            *optional = Some(old.checked_add(&reward).unwrap_or_else(Zero::zero));
+                            Ok(())
+                        },
                     )?;
-                    Ok(())
-                })?;
-            } else {
-                <TokensOf<T> as Tokens<T::AccountId>>::burn(optional_currency_id, &who, number)?;
-            }
-            Self::deposit_event(Event::Retrieval(who, proposal_id, result_id, balance));
+                    let dividends_account = T::Ruler::get_account(RulerModule::PlatformDividend)?;
+                    Self::appropriation(currency_id, &dividends_account, dividends)?;
+                    Self::appropriation(currency_id, &who, number)
+                } else {
+                    <TokensOf<T> as Tokens<T::AccountId>>::burn(optional_currency_id, &who, number)
+                }
+            })?;
+            Self::deposit_event(Event::Retrieval(who, proposal_id, result_id, number));
+            Ok(().into())
+        }
+
+        /// Accounts that provide the correct results can withdraw part of the settlement token
+        /// rewards
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
+        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn withdrawal_reward(
+            origin: OriginFor<T>,
+            proposal_id: ProposalIdOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let result =
+                ProposalResult::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotResult)?;
+            let update = T::Autonomy::temporary_results(proposal_id, &who)?;
+            ensure!(result == update, Error::<T>::UploadedNotResult);
+            let total = T::Autonomy::statistical_results(proposal_id, result);
+            // TODO Withdrawal rewards, the reward comes from the handling fee generated by the
+            // liquidation
             Ok(().into())
         }
 
@@ -687,268 +623,11 @@ pub mod pallet {
             with_transaction_result(|| {
                 T::Pool::set_proposal_state(proposal_id, ProposalStatus::End)?;
                 ProposalResult::<T>::insert(proposal_id, currency_id);
-                Self::finally_locked(proposal_id)?;
-                Ok(())
+                Self::finally_locked(proposal_id)
             })?;
             Self::deposit_event(Event::SetResult(proposal_id, currency_id));
             Ok(().into())
         }
-    }
-}
-
-impl<T: Config> Pallet<T> {
-    fn get_other_optional_id(
-        proposal_id: ProposalIdOf<T>,
-        optional_currency_id: CurrencyIdOf<T>,
-    ) -> Result<(usize, CurrencyIdOf<T>), DispatchError> {
-        let (asset_id_1, asset_id_2) =
-            PoolPairs::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
-        let other_currency_id = if optional_currency_id == asset_id_1 {
-            (1, asset_id_2)
-        } else {
-            (0, asset_id_1)
-        };
-        Ok(other_currency_id)
-    }
-
-    fn get_fee_of_liquid(
-        proposal_id: ProposalIdOf<T>,
-        number: BalanceOf<T>,
-        total_liquid: BalanceOf<T>,
-    ) -> Result<BalanceOf<T>, DispatchError> {
-        let market_fee = ProposalFinallyMarketFee::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
-
-        let decimals = T::Pool::get_earn_trading_fee_decimals();
-        let one = pow(10u32, decimals.into());
-        let liquidity_provider_fee_rate: u32 = T::Pool::proposal_liquidity_provider_fee_rate();
-
-        let mul_market_fee = market_fee
-            .checked_mul(&number)
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let mul_market_fee = mul_market_fee
-            .checked_mul(&liquidity_provider_fee_rate.into())
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let fee = mul_market_fee
-            .checked_div(&total_liquid)
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let fee = fee
-            .checked_div(&one.into())
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        Ok(fee)
-    }
-
-    fn get_fee_of_creator(
-        who: &T::AccountId,
-        proposal_id: ProposalIdOf<T>,
-    ) -> Result<BalanceOf<T>, DispatchError> {
-        let owner = T::Pool::proposal_owner(proposal_id)?;
-        if owner == *who && !ProposalOwnerAlreadyWithdrawnFee::<T>::contains_key(proposal_id, &who)
-        {
-            let market_fee =
-                ProposalFinallyMarketFee::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
-
-            let decimals = T::Pool::get_earn_trading_fee_decimals();
-            let one = pow(10u32, decimals.into());
-            let liquidity_provider_fee_rate: u32 = T::Pool::proposal_liquidity_provider_fee_rate();
-
-            let mul_market_fee = market_fee
-                .checked_mul(&liquidity_provider_fee_rate.into())
-                .ok_or(Error::<T>::BalanceOverflow)?;
-            let fee = mul_market_fee
-                .checked_div(&one.into())
-                .ok_or(Error::<T>::BalanceOverflow)?;
-            let fee = market_fee.checked_sub(&fee).unwrap_or_else(Zero::zero);
-            ProposalOwnerAlreadyWithdrawnFee::<T>::insert(proposal_id, &who, fee);
-            Ok(fee)
-        } else {
-            Ok(Zero::zero())
-        }
-    }
-
-    fn finally_locked(proposal_id: ProposalIdOf<T>) -> Result<(), DispatchError> {
-        let finally_liquid =
-            ProposalTotalMarketLiquid::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
-        let finally_fee = ProposalTotalMarketFee::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
-        let finally_optional = ProposalTotalOptionalMarket::<T>::get(proposal_id)
-            .ok_or(Error::<T>::ProposalIdNotExist)?;
-        ProposalFinallyMarketFee::<T>::insert(proposal_id, finally_fee);
-        ProposalFinallyMarketLiquid::<T>::insert(proposal_id, finally_liquid);
-        ProposalFinallyTotalOptionalMarket::<T>::insert(proposal_id, finally_optional);
-        Ok(())
-    }
-
-    fn init_pool(
-        who: &T::AccountId,
-        proposal_id: ProposalIdOf<T>,
-        title: Vec<u8>,
-        close_time: MomentOf<T>,
-        category_id: T::CategoryId,
-        currency_id: CurrencyIdOf<T>,
-        optional: [Vec<u8>; 2],
-        number: BalanceOf<T>,
-        earn_fee: u32,
-        detail: Vec<u8>,
-    ) -> Result<(CurrencyIdOf<T>, CurrencyIdOf<T>, CurrencyIdOf<T>), DispatchError> {
-        let version: VersionIdOf<T> = T::CurrentLiquidateVersionId::get();
-        Proposals::<T>::insert(
-            proposal_id,
-            Proposal {
-                title,
-                category_id,
-                detail,
-            },
-        );
-        T::Pool::init_proposal(
-            proposal_id,
-            &who,
-            ProposalStatus::OriginalPrediction,
-            T::Time::now(),
-            close_time,
-            version,
-        );
-        ProposalCurrencyId::<T>::insert(proposal_id, currency_id);
-        <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, &who, number)?;
-        let decimals = <TokensOf<T> as Tokens<T::AccountId>>::decimals(currency_id)?;
-        let asset_id_1 = <TokensOf<T> as Tokens<T::AccountId>>::new_asset(
-            optional[0].clone(),
-            runtime_format!("{:?}-YES", proposal_id),
-            decimals,
-        )?;
-        let asset_id_2 = <TokensOf<T> as Tokens<T::AccountId>>::new_asset(
-            optional[1].clone(),
-            runtime_format!("{:?}-NO", proposal_id),
-            decimals,
-        )?;
-        let asset_id_lp = <TokensOf<T> as Tokens<T::AccountId>>::new_asset(
-            runtime_format!("LP-{:?}", proposal_id),
-            runtime_format!("LP-{:?}", proposal_id),
-            decimals,
-        )?;
-
-        <TokensOf<T> as Tokens<T::AccountId>>::mint_donate(asset_id_1, number)?;
-        <TokensOf<T> as Tokens<T::AccountId>>::mint_donate(asset_id_2, number)?;
-        ProposalTotalOptionalMarket::<T>::insert(proposal_id, (number, number));
-
-        ProposalLiquidateCurrencyId::<T>::insert(proposal_id, asset_id_lp);
-        <TokensOf<T> as Tokens<T::AccountId>>::mint(asset_id_lp, &who, number)?;
-
-        PoolPairs::<T>::insert(proposal_id, (asset_id_1, asset_id_2));
-        ProposalTotalEarnTradingFee::<T>::insert(proposal_id, earn_fee);
-        ProposalAccountInfo::<T>::insert(proposal_id, who.clone(), number);
-        ProposalTotalMarket::<T>::insert(proposal_id, number);
-        ProposalTotalMarketLiquid::<T>::insert(proposal_id, number);
-        Ok((asset_id_1, asset_id_2, asset_id_lp))
-    }
-
-    fn get_fee(
-        proposal_id: ProposalIdOf<T>,
-        number: BalanceOf<T>,
-    ) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
-        let fee_decimals: u8 = T::Pool::get_earn_trading_fee_decimals();
-        let one = pow(10u32, fee_decimals.into());
-        let fee_rate = ProposalTotalEarnTradingFee::<T>::get(proposal_id)
-            .ok_or(Error::<T>::ProposalIdNotExist)?;
-        let mut rate = number
-            .checked_mul(&(fee_rate.into()))
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        rate = rate
-            .checked_div(&(one.into()))
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let actual_number = number.checked_sub(&rate).unwrap_or_else(Zero::zero);
-        Ok((actual_number, rate))
-    }
-
-    fn add_and_adjust_pool(
-        to_add: usize,
-        number: BalanceOf<T>,
-        old_pair: &[BalanceOf<T>; 2],
-    ) -> Result<[BalanceOf<T>; 2], DispatchError> {
-        let base = old_pair[0]
-            .checked_mul(&old_pair[1])
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let mut new_pair = *old_pair;
-        new_pair[to_add] = new_pair[to_add]
-            .checked_add(&number)
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        new_pair[1 - to_add] = base
-            .checked_div(&new_pair[to_add])
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        Ok(new_pair)
-    }
-
-    fn get_sell_result(
-        proposal_id: ProposalIdOf<T>,
-        pair: &[BalanceOf<T>; 2],
-        number: BalanceOf<T>,
-        current_currency: CurrencyIdOf<T>,
-    ) -> Result<BalanceOf<T>, DispatchError> {
-        let a: BalanceOf<T> = One::one();
-        let b: BalanceOf<T> = pair[0]
-            .checked_add(&pair[1])
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let b: BalanceOf<T> = b.checked_sub(&number).unwrap_or_else(Zero::zero);
-        let other_currency = Self::get_other_optional_id(proposal_id, current_currency)?;
-        let c: BalanceOf<T> = number
-            .checked_mul(&pair[1 - other_currency.0])
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let _4ac = a.checked_mul(&c).ok_or(Error::<T>::BalanceOverflow)?;
-        let _4ac = _4ac
-            .checked_mul(&4u32.into())
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let _2a = a
-            .checked_mul(&2u32.into())
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let delta = pow(b, 2)
-            .checked_add(&_4ac)
-            .ok_or(Error::<T>::BalanceOverflow)?;
-        let sqrt_delta = delta.integer_sqrt();
-        ensure!(sqrt_delta >= b, Error::<T>::NoRealNumber);
-        let tmp = sqrt_delta.checked_sub(&b).unwrap_or_else(Zero::zero);
-        Ok(tmp
-            .checked_div(&2u32.into())
-            .ok_or(Error::<T>::BalanceOverflow)?)
-    }
-
-    fn total_and_account_add(
-        proposal_id: ProposalIdOf<T>,
-        who: &T::AccountId,
-        diff: BalanceOf<T>,
-    ) -> Result<(), DispatchError> {
-        proposal_total_market_try_mutate!(
-            proposal_id,
-            old_amount,
-            old_amount
-                .checked_add(&diff)
-                .ok_or(Error::<T>::BalanceOverflow)?
-        )?;
-        proposal_account_info_try_mutate!(
-            proposal_id,
-            who,
-            old_amount,
-            old_amount
-                .checked_add(&diff)
-                .ok_or(Error::<T>::BalanceOverflow)?
-        )?;
-        Ok(())
-    }
-
-    fn total_and_account_sub(
-        proposal_id: ProposalIdOf<T>,
-        who: &T::AccountId,
-        diff: BalanceOf<T>,
-    ) -> Result<(), DispatchError> {
-        proposal_total_market_try_mutate!(
-            proposal_id,
-            old_amount,
-            old_amount.checked_sub(&diff).unwrap_or_else(Zero::zero)
-        )?;
-        proposal_account_info_try_mutate!(
-            proposal_id,
-            who,
-            old_amount,
-            old_amount.checked_sub(&diff).unwrap_or_else(Zero::zero)
-        )?;
-        Ok(())
     }
 }
 
@@ -975,6 +654,13 @@ impl<T: Config> LiquidityCouple<T> for Pallet<T> {
         match Self::set_result(RawOrigin::Root.into(), proposal_id, result) {
             Ok(_) => Ok(()),
             Err(e) => Err(e.error)?,
+        }
+    }
+
+    fn get_proposal_result(proposal_id: ProposalIdOf<T>) -> Result<CurrencyIdOf<T>, DispatchError> {
+        match ProposalResult::<T>::get(proposal_id) {
+            Some(result) => Ok(result),
+            None => Err(Error::<T>::ProposalNotResult)?,
         }
     }
 

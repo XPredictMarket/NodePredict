@@ -99,6 +99,93 @@ fn test_unstake_from() {
 }
 
 #[test]
+fn test_deposit_reward() {
+    new_test_ext().execute_with(|| {
+        let module_account = ProposalsModule::module_account();
+        assert_ok!(ProposalsModule::deposit_reward(Origin::signed(1), 100));
+        let event = Event::proposals(crate::Event::DepositReward(1, module_account, 100));
+        assert!(System::events().iter().any(|record| record.event == event));
+
+        let currency_id = <Test as crate::Config>::GovernanceCurrencyId::get();
+        assert_eq!(
+            <TokensOf<Test> as Tokens<AccountId>>::balance(currency_id, &module_account),
+            100
+        );
+    })
+}
+
+#[test]
+fn test_withdrawal_reward() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Couple::new_couple_proposal(1, 1, 102));
+        assert_noop!(
+            ProposalsModule::withdrawal_reward(Origin::signed(1), 0),
+            Error::<Test>::ProposalAbnormalState
+        );
+        assert_ok!(
+            <ProposalsModule as LiquidityPool<Test>>::set_proposal_state(
+                0,
+                ProposalStatus::FormalPrediction
+            )
+        );
+        assert_noop!(
+            ProposalsModule::withdrawal_reward(Origin::signed(1), 0),
+            Error::<Test>::ProposalAbnormalVote
+        );
+        assert_ok!(
+            <ProposalsModule as LiquidityPool<Test>>::set_proposal_state(
+                0,
+                ProposalStatus::OriginalPrediction
+            )
+        );
+        assert_ok!(ProposalsModule::stake_to(Origin::signed(2), 0, 600, true));
+        assert_ok!(ProposalsModule::stake_to(Origin::signed(3), 0, 600, true));
+        assert_ok!(ProposalsModule::stake_to(Origin::signed(4), 0, 600, false));
+        let now = <Timestamp as Time>::now();
+        run_to_block::<ProposalsModule>(now + 101);
+        assert_eq!(
+            ProposalsModule::proposal_status(0),
+            Some(ProposalStatus::FormalPrediction)
+        );
+        let default_reward = ProposalsModule::default_reward().unwrap();
+        let currency_id = <Test as crate::Config>::GovernanceCurrencyId::get();
+        assert_ok!(ProposalsModule::deposit_reward(
+            Origin::signed(1),
+            default_reward
+        ));
+
+        let before = <TokensOf<Test> as Tokens<AccountId>>::balance(currency_id, &2);
+        assert_ok!(ProposalsModule::withdrawal_reward(Origin::signed(2), 0));
+        let after = <TokensOf<Test> as Tokens<AccountId>>::balance(currency_id, &2);
+        assert_eq!(after - before, default_reward / 2);
+    })
+}
+
+#[test]
+fn test_reclaim_reward() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Couple::new_couple_proposal(1, 1, 102));
+        assert_ok!(ProposalsModule::stake_to(Origin::signed(2), 0, 600, true));
+        assert_ok!(ProposalsModule::stake_to(Origin::signed(3), 0, 600, true));
+        assert_ok!(ProposalsModule::stake_to(Origin::signed(4), 0, 600, false));
+        let now = <Timestamp as Time>::now();
+        run_to_block::<ProposalsModule>(now + 101);
+        let default_reward = ProposalsModule::default_reward().unwrap();
+        assert_ok!(ProposalsModule::deposit_reward(
+            Origin::signed(1),
+            default_reward
+        ));
+        assert_ok!(ProposalsModule::withdrawal_reward(Origin::signed(2), 0));
+
+        let currency_id = <Test as crate::Config>::GovernanceCurrencyId::get();
+        let before = <TokensOf<Test> as Tokens<AccountId>>::balance(currency_id, &1);
+        assert_ok!(ProposalsModule::reclaim_reward(Origin::root(), 1));
+        let after = <TokensOf<Test> as Tokens<AccountId>>::balance(currency_id, &1);
+        assert_eq!(after - before, default_reward / 2);
+    })
+}
+
+#[test]
 fn test_hooks() {
     new_test_ext().execute_with(|| {
         let step: MomentOf<Test> = 100;

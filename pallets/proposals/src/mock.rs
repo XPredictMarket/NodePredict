@@ -21,7 +21,7 @@ use xpmrl_traits::{
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
-type AccountId = u64;
+pub type AccountId = u64;
 type Balance = u128;
 pub type BlockNumber = u64;
 
@@ -31,8 +31,7 @@ thread_local! {
 
 pub struct Timestamp;
 impl Time for Timestamp {
-    type Moment = u64;
-
+    type Moment = BlockNumber;
     fn now() -> Self::Moment {
         System::block_number()
     }
@@ -81,7 +80,7 @@ impl frame_system::Config for Test {
     type SS58Prefix = SS58Prefix;
 }
 
-type TokensOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
+pub type TokensOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
 type CurrencyIdOf<T> = <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::CurrencyId;
 
 type TimeOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Time;
@@ -191,6 +190,17 @@ impl LiquidityCouple<Test> for Couple {
         })
     }
 
+    fn get_proposal_result(
+        proposal_id: ProposalIdOf<Test>,
+    ) -> Result<CurrencyIdOf<Test>, DispatchError> {
+        COUPLE_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
+            match wrapper.borrow().proposal_result.get(&proposal_id) {
+                Some(result) => Ok(*result),
+                None => Err("ProposalNotResult")?,
+            }
+        })
+    }
+
     fn proposal_liquidate_currency_id(
         proposal_id: ProposalIdOf<Test>,
     ) -> Result<CurrencyIdOf<Test>, DispatchError> {
@@ -246,15 +256,15 @@ impl xpmrl_tokens::Config for Test {
 }
 
 parameter_types! {
-    pub const EarnTradingFeeDecimals: u8 = 4;
     pub const GovernanceCurrencyId: CurrencyIdOf<Test> = 1;
+    pub const RewardId: ModuleId = ModuleId(*b"xpreward");
 }
 
 impl proposals::Config for Test {
     type Event = Event;
-    type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
     type SubPool = Couple;
     type GovernanceCurrencyId = GovernanceCurrencyId;
+    type RewardId = RewardId;
 }
 
 pub fn run_to_block<Module: Hooks<BlockNumber>>(n: BlockNumber) {
@@ -284,9 +294,9 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     };
     let proposals_genesis = proposals::GenesisConfig::<Test> {
         expiration_time: 100,
-        liquidity_provider_fee_rate: 9_000,
         minimum_interval_time: 60 * 1_000,
         minimum_vote: 1_000,
+        default_reward: 100,
     };
     proposals_genesis.assimilate_storage(&mut t).unwrap();
     tokens_genesis.assimilate_storage(&mut t).unwrap();

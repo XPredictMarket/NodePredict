@@ -4451,6 +4451,7 @@ dependencies = [
  "xpmrl-autonomy",
  "xpmrl-couple",
  "xpmrl-proposals",
+ "xpmrl-ruler",
  "xpmrl-tokens",
  "xpmrl-traits",
 ]
@@ -8526,6 +8527,21 @@ dependencies = [
  "xpmrl-tokens",
  "xpmrl-traits",
  "xpmrl-utils",
+]
+
+[[package]]
+name = "xpmrl-ruler"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xpmrl-traits",
 ]
 
 [[package]]

@@ -1,6 +1,7 @@
 use predict_runtime::{
-    AccountId, AuraConfig, AutonomyConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
-    ProposalsConfig, Signature, SudoConfig, SystemConfig, TokensConfig, WASM_BINARY,
+    AccountId, AuraConfig, AutonomyConfig, BalancesConfig, CoupleConfig, GenesisConfig,
+    GrandpaConfig, ProposalsConfig, RulerConfig, Signature, SudoConfig, SystemConfig, TokensConfig,
+    WASM_BINARY,
 };
 use sc_service::ChainType;
 use serde_json::{map::Map, value::Value};
@@ -247,7 +248,7 @@ fn testnet_genesis(
         }),
         pallet_sudo: Some(SudoConfig {
             // Assign network admin rights.
-            key: root_key,
+            key: root_key.clone(),
         }),
         tokens: Some(TokensConfig {
             tokens: tokens
@@ -264,13 +265,20 @@ fn testnet_genesis(
         }),
         proposals: Some(ProposalsConfig {
             expiration_time: 7 * 24 * 60 * 60 * 1000,
-            liquidity_provider_fee_rate: 9000,
             minimum_interval_time: 10 * 60 * 1000,
             minimum_vote: 10_000 * 100_000_000,
+            default_reward: 10 * 100_000_000,
+        }),
+        couple: Some(CoupleConfig {
+            liquidity_provider_fee_rate: 9000,
+            withdrawal_fee_rate: 50,
         }),
         autonomy: Some(AutonomyConfig {
             minimal_number: 10000 * 100000000,
             interval: 2 * 24 * 60 * 60 * 1000, // 2 days
+        }),
+        ruler: Some(RulerConfig {
+            dividend_address: root_key,
         }),
     }
 }

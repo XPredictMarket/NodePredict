@@ -400,6 +400,10 @@ impl<T: Config> GenesisConfig<T> {
 }
 
 impl<T: Config> Pallet<T> {
+    fn module_account() -> T::AccountId {
+        T::ModuleId::get().into_account()
+    }
+
     fn get_next_currency_id() -> Result<T::CurrencyId, DispatchError> {
         CurrentCurrencyId::<T>::try_mutate(|value| -> Result<T::CurrencyId, DispatchError> {
             let mut currency_id = value.unwrap_or_else(Zero::zero);
@@ -825,7 +829,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         from: &T::AccountId,
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        let module_account: T::AccountId = T::ModuleId::get().into_account();
+        let module_account = Self::module_account();
         Self::inner_transfer_from(currency_id, &from, &module_account, value)
     }
 
@@ -833,7 +837,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         currency_id: Self::CurrencyId,
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        let module_account: T::AccountId = T::ModuleId::get().into_account();
+        let module_account = Self::module_account();
         <Self as Tokens<T::AccountId>>::mint(currency_id, &module_account, value)
     }
 
@@ -841,7 +845,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         currency_id: Self::CurrencyId,
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        let module_account: T::AccountId = T::ModuleId::get().into_account();
+        let module_account = Self::module_account();
         <Self as Tokens<T::AccountId>>::burn(currency_id, &module_account, value)
     }
 
@@ -850,7 +854,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         to: &T::AccountId,
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        let module_account: T::AccountId = T::ModuleId::get().into_account();
+        let module_account = Self::module_account();
         Self::inner_transfer_from(currency_id, &module_account, &to, value)
     }
 }

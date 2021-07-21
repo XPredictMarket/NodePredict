@@ -40,7 +40,10 @@ use sp_runtime::{
         InvalidTransaction, TransactionSource, TransactionValidity, ValidTransaction,
     },
 };
-use xpmrl_traits::{couple::LiquidityCouple, pool::LiquidityPool, tokens::Tokens, ProposalStatus};
+use xpmrl_traits::{
+    autonomy::Autonomy, couple::LiquidityCouple, pool::LiquidityPool, tokens::Tokens,
+    ProposalStatus,
+};
 use xpmrl_utils::with_transaction_result;
 
 /// Defines application identifier for crypto keys of this module.
@@ -259,6 +262,7 @@ pub mod pallet {
         /// The account has already uploaded the results, the same proposal cannot be uploaded
         /// again
         AccountHasAlreadyUploaded,
+        AccountNotUpload,
         /// Value has been overflow
         Overflow,
         /// Proposal is not at the wait for result, unable to upload results
@@ -651,5 +655,21 @@ impl<T: Config> frame_support::unsigned::ValidateUnsigned for Module<T> {
             }
             _ => InvalidTransaction::Call.into(),
         }
+    }
+}
+
+impl<T: Config> Autonomy<T> for Pallet<T> {
+    fn temporary_results(
+        proposal_id: ProposalIdOf<T>,
+        who: &T::AccountId,
+    ) -> Result<CurrencyIdOf<T>, DispatchError> {
+        match TemporaryResults::<T>::get(proposal_id, &who) {
+            Some(result) => Ok(result),
+            None => Err(Error::<T>::AccountNotUpload)?,
+        }
+    }
+
+    fn statistical_results(proposal_id: ProposalIdOf<T>, currency_id: CurrencyIdOf<T>) -> u64 {
+        StatisticalResults::<T>::get(proposal_id, currency_id).unwrap_or_else(Zero::zero)
     }
 }

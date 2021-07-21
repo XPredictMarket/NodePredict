@@ -1,5 +1,9 @@
 use crate::{self as couple, Error};
-use frame_support::{dispatch::DispatchError, parameter_types, traits::Time};
+use frame_support::{
+    dispatch::DispatchError,
+    parameter_types,
+    traits::{GenesisBuild, Time},
+};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
@@ -7,7 +11,10 @@ use sp_runtime::{
     ModuleId,
 };
 use std::{cell::RefCell, collections::HashMap};
-use xpmrl_traits::{pool::LiquidityPool, system::ProposalSystem, tokens::Tokens, ProposalStatus};
+use xpmrl_traits::{
+    autonomy::Autonomy, pool::LiquidityPool, ruler::RulerAccounts, system::ProposalSystem,
+    tokens::Tokens, ProposalStatus, RulerModule,
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -17,12 +24,12 @@ pub type BlockNumber = u64;
 
 thread_local! {
     static PROPOSALS_WRAPPER: RefCell<ProposalsWrapper> = RefCell::new(ProposalsWrapper::new());
+    static AUTONOMY_WRAPPER: RefCell<AutonomyWrapper> = RefCell::new(AutonomyWrapper::new());
 }
 
 pub struct Timestamp;
 impl Time for Timestamp {
-    type Moment = u64;
-
+    type Moment = BlockNumber;
     fn now() -> Self::Moment {
         System::block_number()
     }
@@ -35,8 +42,8 @@ frame_support::construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: frame_system::{Module, Call, Config, Storage, Event<T>},
-        CoupleModule: couple::{Module, Call, Storage, Event<T>},
-        XPMRLTokens: xpmrl_tokens::{Module, Call, Storage, Event<T>},
+        CoupleModule: couple::{Module, Call, Config, Storage, Event<T>},
+        XPMRLTokens: xpmrl_tokens::{Module, Call, Config<T>, Storage, Event<T>},
         PalletBalances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
     }
 );
@@ -134,9 +141,7 @@ impl ProposalsWrapper {
     }
 }
 
-pub struct Proposals;
-
-impl LiquidityPool<Test> for Proposals {
+impl LiquidityPool<Test> for ProposalsWrapper {
     fn get_proposal_minimum_interval_time() -> MomentOf<Test> {
         PROPOSALS_WRAPPER.with(|wrapper| -> MomentOf<Test> { wrapper.borrow().interval_time })
     }
@@ -218,14 +223,6 @@ impl LiquidityPool<Test> for Proposals {
         })
     }
 
-    fn get_earn_trading_fee_decimals() -> u8 {
-        4
-    }
-
-    fn proposal_liquidity_provider_fee_rate() -> u32 {
-        200
-    }
-
     fn proposal_owner(proposal_id: ProposalIdOf<Test>) -> Result<AccountId, DispatchError> {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<AccountId, DispatchError> {
             match wrapper.borrow().proposal_owner.get(&proposal_id) {
@@ -247,6 +244,101 @@ impl LiquidityPool<Test> for Proposals {
     }
 }
 
+pub struct RulerWrapper;
+impl RulerAccounts<Test> for RulerWrapper {
+    fn get_account(_module: RulerModule) -> Result<AccountId, DispatchError> {
+        Ok(3)
+    }
+}
+
+pub struct AutonomyWrapper {
+    pub temporary_results: HashMap<ProposalIdOf<Test>, HashMap<AccountId, CurrencyIdOf<Test>>>,
+    pub statistical_results: HashMap<ProposalIdOf<Test>, HashMap<CurrencyIdOf<Test>, u64>>,
+}
+
+impl AutonomyWrapper {
+    fn new() -> AutonomyWrapper {
+        AutonomyWrapper {
+            temporary_results:
+                HashMap::<ProposalIdOf<Test>, HashMap<AccountId, CurrencyIdOf<Test>>>::new(),
+            statistical_results:
+                HashMap::<ProposalIdOf<Test>, HashMap<CurrencyIdOf<Test>, u64>>::new(),
+        }
+    }
+
+    pub(crate) fn set_temporary_results(
+        proposal_id: ProposalIdOf<Test>,
+        who: &AccountId,
+        currency_id: CurrencyIdOf<Test>,
+    ) {
+        AUTONOMY_WRAPPER.with(|wrapper| -> () {
+            let mut val = wrapper
+                .borrow()
+                .temporary_results
+                .get(&proposal_id)
+                .unwrap_or(&HashMap::<AccountId, CurrencyIdOf<Test>>::new())
+                .clone();
+            val.insert(*who, currency_id);
+            wrapper
+                .borrow_mut()
+                .temporary_results
+                .insert(proposal_id, val);
+        })
+    }
+
+    pub(crate) fn inc_statistical_results(
+        proposal_id: ProposalIdOf<Test>,
+        currency_id: CurrencyIdOf<Test>,
+    ) {
+        AUTONOMY_WRAPPER.with(|wrapper| -> () {
+            let mut val = wrapper
+                .borrow()
+                .statistical_results
+                .get(&proposal_id)
+                .unwrap_or(&HashMap::<CurrencyIdOf<Test>, u64>::new())
+                .clone();
+            let count = val.get(&currency_id).unwrap_or(&0) + 1;
+            val.insert(currency_id, count);
+            wrapper
+                .borrow_mut()
+                .statistical_results
+                .insert(proposal_id, val);
+        })
+    }
+}
+
+impl Autonomy<Test> for AutonomyWrapper {
+    fn temporary_results(
+        proposal_id: ProposalIdOf<Test>,
+        who: &AccountId,
+    ) -> Result<CurrencyIdOf<Test>, DispatchError> {
+        AUTONOMY_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
+            let inner = wrapper
+                .borrow()
+                .temporary_results
+                .get(&proposal_id)
+                .unwrap()
+                .clone();
+            Ok(*(inner.get(&who).unwrap()))
+        })
+    }
+
+    fn statistical_results(
+        proposal_id: ProposalIdOf<Test>,
+        currency_id: CurrencyIdOf<Test>,
+    ) -> u64 {
+        AUTONOMY_WRAPPER.with(|wrpper| -> u64 {
+            let inner = wrpper
+                .borrow()
+                .statistical_results
+                .get(&proposal_id)
+                .unwrap()
+                .clone();
+            *(inner.get(&currency_id).unwrap())
+        })
+    }
+}
+
 type ProposalId = u32;
 type VersionId = u32;
 type CategoryId = u32;
@@ -261,11 +353,15 @@ impl ProposalSystem<AccountId> for Test {
 
 parameter_types! {
     pub const CurrentLiquidateVersionId: VersionId = 1;
+    pub const EarnTradingFeeDecimals: u8 = 4;
 }
 
 impl couple::Config for Test {
     type Event = Event;
-    type Pool = Proposals;
+    type Pool = ProposalsWrapper;
+    type Ruler = RulerWrapper;
+    type Autonomy = AutonomyWrapper;
+    type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
     type CurrentLiquidateVersionId = CurrentLiquidateVersionId;
 }
 
@@ -284,7 +380,13 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         ],
         balances: vec![(1, 100000), (2, 31250)],
     };
+    let couple_genesis = couple::GenesisConfig {
+        liquidity_provider_fee_rate: 9000,
+        withdrawal_fee_rate: 50,
+    };
+
     tokens_genesis.assimilate_storage(&mut t).unwrap();
+    GenesisBuild::<Test>::assimilate_storage(&couple_genesis, &mut t).unwrap();
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));
     ext

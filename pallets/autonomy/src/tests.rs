@@ -1,7 +1,7 @@
 use crate::{mock::*, Error, Payload};
 
 use frame_support::{assert_noop, assert_ok};
-use xpmrl_traits::{pool::LiquidityPool, ProposalStatus};
+use xpmrl_traits::{couple::LiquidityCouple, pool::LiquidityPool, ProposalStatus};
 
 #[test]
 fn test_set_minimal_number() {
@@ -216,6 +216,9 @@ fn test_auto_merged_result() {
             <Proposals as LiquidityPool<Test>>::get_proposal_state(0),
             Ok(ProposalStatus::End)
         );
-        assert_eq!(Proposals::get_proposal_result(0), Ok(4));
+        assert_eq!(
+            <Proposals as LiquidityCouple<Test>>::get_proposal_result(0),
+            Ok(4)
+        );
     })
 }
