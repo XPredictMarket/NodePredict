@@ -3,6 +3,7 @@ use sp_runtime::DispatchError;
 
 type TokensOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
 type CurrencyIdOf<T> = <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::CurrencyId;
+type BalanceOf<T> = <TokensOf<T> as Tokens<<T as frame_system::Config>::AccountId>>::Balance;
 
 type ProposalIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::ProposalId;
 
@@ -15,5 +16,8 @@ where
         who: &T::AccountId,
     ) -> Result<CurrencyIdOf<T>, DispatchError>;
 
-    fn statistical_results(proposal_id: ProposalIdOf<T>, currency_id: CurrencyIdOf<T>) -> u64;
+    fn statistical_results(
+        proposal_id: ProposalIdOf<T>,
+        currency_id: CurrencyIdOf<T>,
+    ) -> BalanceOf<T>;
 }

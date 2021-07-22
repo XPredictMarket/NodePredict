@@ -253,7 +253,8 @@ impl RulerAccounts<Test> for RulerWrapper {
 
 pub struct AutonomyWrapper {
     pub temporary_results: HashMap<ProposalIdOf<Test>, HashMap<AccountId, CurrencyIdOf<Test>>>,
-    pub statistical_results: HashMap<ProposalIdOf<Test>, HashMap<CurrencyIdOf<Test>, u64>>,
+    pub statistical_results:
+        HashMap<ProposalIdOf<Test>, HashMap<CurrencyIdOf<Test>, BalanceOf<Test>>>,
 }
 
 impl AutonomyWrapper {
@@ -261,8 +262,10 @@ impl AutonomyWrapper {
         AutonomyWrapper {
             temporary_results:
                 HashMap::<ProposalIdOf<Test>, HashMap<AccountId, CurrencyIdOf<Test>>>::new(),
-            statistical_results:
-                HashMap::<ProposalIdOf<Test>, HashMap<CurrencyIdOf<Test>, u64>>::new(),
+            statistical_results: HashMap::<
+                ProposalIdOf<Test>,
+                HashMap<CurrencyIdOf<Test>, BalanceOf<Test>>,
+            >::new(),
         }
     }
 
@@ -283,19 +286,12 @@ impl AutonomyWrapper {
                 .borrow_mut()
                 .temporary_results
                 .insert(proposal_id, val);
-        })
-    }
 
-    pub(crate) fn inc_statistical_results(
-        proposal_id: ProposalIdOf<Test>,
-        currency_id: CurrencyIdOf<Test>,
-    ) {
-        AUTONOMY_WRAPPER.with(|wrapper| -> () {
             let mut val = wrapper
                 .borrow()
                 .statistical_results
                 .get(&proposal_id)
-                .unwrap_or(&HashMap::<CurrencyIdOf<Test>, u64>::new())
+                .unwrap_or(&HashMap::<CurrencyIdOf<Test>, BalanceOf<Test>>::new())
                 .clone();
             let count = val.get(&currency_id).unwrap_or(&0) + 1;
             val.insert(currency_id, count);
@@ -326,8 +322,8 @@ impl Autonomy<Test> for AutonomyWrapper {
     fn statistical_results(
         proposal_id: ProposalIdOf<Test>,
         currency_id: CurrencyIdOf<Test>,
-    ) -> u64 {
-        AUTONOMY_WRAPPER.with(|wrpper| -> u64 {
+    ) -> BalanceOf<Test> {
+        AUTONOMY_WRAPPER.with(|wrpper| -> BalanceOf<Test> {
             let inner = wrpper
                 .borrow()
                 .statistical_results

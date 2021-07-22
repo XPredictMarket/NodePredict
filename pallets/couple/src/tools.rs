@@ -10,7 +10,9 @@ use sp_runtime::{
     DispatchError,
 };
 use sp_std::{cmp, vec::Vec};
-use xpmrl_traits::{pool::LiquidityPool, tokens::Tokens, ProposalStatus};
+use xpmrl_traits::{
+    pool::LiquidityPool, ruler::RulerAccounts, tokens::Tokens, ProposalStatus, RulerModule,
+};
 use xpmrl_utils::{runtime_format, storage_try_mutate, sub_abs};
 
 impl<T: Config> Pallet<T> {
@@ -459,5 +461,79 @@ impl<T: Config> Pallet<T> {
             .unwrap_or_else(Zero::zero);
         Self::appropriation(other_currency.1, &who, acquired)?;
         Ok(actual_number)
+    }
+
+    pub(crate) fn inner_retrieval(
+        who: &T::AccountId,
+        proposal_id: ProposalIdOf<T>,
+        result_id: CurrencyIdOf<T>,
+        optional_currency_id: CurrencyIdOf<T>,
+        number: BalanceOf<T>,
+    ) -> Result<BalanceOf<T>, DispatchError> {
+        if optional_currency_id == result_id {
+            let currency_id =
+                ProposalCurrencyId::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+            proposal_total_market_try_mutate!(
+                proposal_id,
+                old_amount,
+                old_amount.checked_sub(&number).unwrap_or_else(Zero::zero)
+            )?;
+            <TokensOf<T> as Tokens<T::AccountId>>::burn(result_id, &who, number)?;
+            let (number, reward, dividends) = Self::get_withdrawal_fee(number);
+            ProposalTotalAutonomyReward::<T>::try_mutate(
+                proposal_id,
+                |optional| -> Result<(), DispatchError> {
+                    let old = optional.unwrap_or_else(Zero::zero);
+                    *optional = Some(old.checked_add(&reward).unwrap_or_else(Zero::zero));
+                    Ok(())
+                },
+            )?;
+            ProposalCurrentAutonomyReward::<T>::try_mutate(
+                proposal_id,
+                |optional| -> Result<(), DispatchError> {
+                    let old = optional.unwrap_or_else(Zero::zero);
+                    *optional = Some(old.checked_add(&reward).unwrap_or_else(Zero::zero));
+                    Ok(())
+                },
+            )?;
+            let dividends_account = T::Ruler::get_account(RulerModule::PlatformDividend)?;
+            Self::appropriation(currency_id, &dividends_account, dividends)?;
+            Self::appropriation(currency_id, &who, number)
+        } else {
+            <TokensOf<T> as Tokens<T::AccountId>>::burn(optional_currency_id, &who, number)
+        }
+    }
+
+    pub(crate) fn inner_withdrawal_reward(
+        who: &T::AccountId,
+        proposal_id: ProposalIdOf<T>,
+        total: BalanceOf<T>,
+    ) -> Result<BalanceOf<T>, DispatchError> {
+        let total_reward =
+            ProposalTotalAutonomyReward::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
+        let currency_id =
+            ProposalCurrencyId::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+        let start_reward = ProposalAccountRewardStart::<T>::try_mutate(
+            proposal_id,
+            &who,
+            |optional| -> Result<BalanceOf<T>, DispatchError> {
+                let old = optional.unwrap_or_else(Zero::zero);
+                *optional = Some(total_reward);
+                Ok(old)
+            },
+        )?;
+        let number = ProposalCurrentAutonomyReward::<T>::try_mutate_exists(
+            proposal_id,
+            |optional| -> Result<BalanceOf<T>, DispatchError> {
+                let old = optional.unwrap_or_else(Zero::zero);
+                let diff = total_reward
+                    .checked_sub(&start_reward)
+                    .unwrap_or_else(Zero::zero);
+                let number = diff.checked_div(&total).unwrap_or_else(Zero::zero);
+                *optional = old.checked_sub(&number);
+                Ok(number)
+            },
+        )?;
+        Self::appropriation(currency_id, &who, number)
     }
 }

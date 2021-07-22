@@ -195,8 +195,14 @@ pub mod pallet {
     /// used to temporarily store the statistics of the proposal results uploaded from the governance account
     #[pallet::storage]
     #[pallet::getter(fn statistical_results)]
-    pub type StatisticalResults<T: Config> =
-        StorageDoubleMap<_, Blake2_128Concat, T::ProposalId, Twox64Concat, CurrencyIdOf<T>, u64>;
+    pub type StatisticalResults<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        T::ProposalId,
+        Twox64Concat,
+        CurrencyIdOf<T>,
+        BalanceOf<T>,
+    >;
 
     /// the minimum number of governance tokens that need to be staked to become a governance node
     #[pallet::storage]
@@ -609,7 +615,7 @@ impl<T: Config> Pallet<T> {
             result,
             |option_sum| -> Result<(), DispatchError> {
                 let mut sum = option_sum.unwrap_or_else(Zero::zero);
-                sum = sum.checked_add(One::one()).ok_or(Error::<T>::Overflow)?;
+                sum = sum.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
                 *option_sum = Some(sum);
                 Ok(())
             },
@@ -669,7 +675,10 @@ impl<T: Config> Autonomy<T> for Pallet<T> {
         }
     }
 
-    fn statistical_results(proposal_id: ProposalIdOf<T>, currency_id: CurrencyIdOf<T>) -> u64 {
+    fn statistical_results(
+        proposal_id: ProposalIdOf<T>,
+        currency_id: CurrencyIdOf<T>,
+    ) -> BalanceOf<T> {
         StatisticalResults::<T>::get(proposal_id, currency_id).unwrap_or_else(Zero::zero)
     }
 }

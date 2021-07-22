@@ -1,7 +1,7 @@
 use crate::{mock::*, Error};
 
 use frame_support::{assert_noop, assert_ok, traits::Time};
-use xpmrl_traits::{pool::LiquidityPool, ProposalStatus as ProposalState};
+use xpmrl_traits::{pool::LiquidityPool, tokens::Tokens, ProposalStatus as ProposalState};
 
 fn create_proposal(
     account: AccountId,
@@ -353,7 +353,70 @@ fn test_retrieval() {
 }
 
 #[test]
-fn test_withdrawal_reward() {}
+fn test_withdrawal_reward() {
+    new_test_ext().execute_with(|| {
+        let number: BalanceOf<Test> = 100000;
+        let account: AccountId = 1;
+        let other_account: AccountId = 2;
+        let currency_id: CurrencyIdOf<Test> = 1;
+        let id = create_proposal(account, currency_id, number, 2000, 10);
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::FormalPrediction
+            )
+        );
+        assert_ok!(CoupleModule::buy(
+            Origin::signed(other_account),
+            id,
+            3,
+            31250
+        ));
+        assert_ok!(
+            <ProposalsWrapper as LiquidityPool<Test>>::set_proposal_state(
+                id,
+                ProposalState::WaitingForResults
+            )
+        );
+        assert_eq!(AutonomyWrapper::set_temporary_results(id, &4, 3), ());
+        assert_eq!(AutonomyWrapper::set_temporary_results(id, &5, 3), ());
+        assert_eq!(AutonomyWrapper::set_temporary_results(id, &6, 4), ());
+        assert_noop!(
+            CoupleModule::withdrawal_reward(Origin::signed(4), id),
+            Error::<Test>::ProposalNotResult
+        );
+        assert_ok!(CoupleModule::set_result(Origin::root(), id, 3));
+        assert_noop!(
+            CoupleModule::withdrawal_reward(Origin::signed(6), id),
+            Error::<Test>::UploadedNotResult
+        );
+        let number = <TokensOf<Test> as Tokens<AccountId>>::balance(3, &2);
+        assert_ok!(CoupleModule::retrieval(
+            Origin::signed(other_account),
+            id,
+            3,
+            number
+        ));
+        let fee = number * 5 / 1000 / 2;
+        assert_eq!(CoupleModule::proposal_total_autonomy_reward(id), Some(fee));
+        assert_ok!(CoupleModule::withdrawal_reward(Origin::signed(4), id));
+        let event = Event::couple(crate::Event::WithdrawalReward(4, id, 56));
+        assert!(System::events().iter().any(|record| record.event == event));
+        assert_eq!(
+            CoupleModule::proposal_account_reward_start(id, 4),
+            Some(112)
+        );
+        assert_eq!(CoupleModule::proposal_current_autonomy_reward(id), Some(56));
+        assert_ok!(CoupleModule::withdrawal_reward(Origin::signed(5), id));
+        let event = Event::couple(crate::Event::WithdrawalReward(5, id, 56));
+        assert!(System::events().iter().any(|record| record.event == event));
+        assert_eq!(
+            CoupleModule::proposal_account_reward_start(id, 5),
+            Some(112)
+        );
+        assert_eq!(CoupleModule::proposal_current_autonomy_reward(id), Some(0));
+    })
+}
 
 #[test]
 fn test_set_result() {

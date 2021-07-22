@@ -47,14 +47,13 @@ pub mod pallet {
     use super::*;
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
     use frame_system::pallet_prelude::*;
-    use num_traits::CheckedAdd;
-    use sp_runtime::traits::{CheckedSub, Zero};
+    use sp_runtime::traits::Zero;
     use sp_std::vec::Vec;
     use xpmrl_traits::{
         autonomy::Autonomy, pool::LiquidityPool, ruler::RulerAccounts, system::ProposalSystem,
-        tokens::Tokens, ProposalStatus, RulerModule,
+        tokens::Tokens, ProposalStatus,
     };
-    use xpmrl_utils::{storage_try_mutate, with_transaction_result};
+    use xpmrl_utils::with_transaction_result;
 
     pub(crate) type TokensOf<T> =
         <T as ProposalSystem<<T as frame_system::Config>::AccountId>>::Tokens;
@@ -248,9 +247,33 @@ pub mod pallet {
     /// After the proposal is over, when the user is clearing, the total settlement currency reward
     /// that the node that participates in providing the result can obtain
     #[pallet::storage]
-    #[pallet::getter(fn proposal_autonomy_reward)]
-    pub type ProposalAutonomyReward<T: Config> =
+    #[pallet::getter(fn proposal_total_autonomy_reward)]
+    pub type ProposalTotalAutonomyReward<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>, OptionQuery>;
+
+    /// After the proposal is over, when the user is cleared, the nodes participating in providing
+    /// the result can obtain the current settlement currency reward, because as the reward is
+    /// added or withdrawn, the total pool will also be changed accordingly.
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_current_autonomy_reward)]
+    pub type ProposalCurrentAutonomyReward<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>, OptionQuery>;
+
+    /// With the withdrawal of users, this value will be updated accordingly. This value is the
+    /// value of the current total pool, so the amount withdrawn by the user is:
+    /// `current rewards` = `total pool` - `current value` * `percentage`
+    /// `percentage` = 1 / `total number of correct votes`
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_account_reward_start)]
+    pub type ProposalAccountRewardStart<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        ProposalIdOf<T>,
+        Twox64Concat,
+        T::AccountId,
+        BalanceOf<T>,
+        OptionQuery,
+    >;
 
     #[pallet::genesis_config]
     pub struct GenesisConfig {
@@ -289,6 +312,7 @@ pub mod pallet {
         Retrieval(T::AccountId, ProposalIdOf<T>, CurrencyIdOf<T>, BalanceOf<T>),
         SetResult(ProposalIdOf<T>, CurrencyIdOf<T>),
         NewProposal(T::AccountId, ProposalIdOf<T>, CurrencyIdOf<T>),
+        WithdrawalReward(T::AccountId, ProposalIdOf<T>, BalanceOf<T>),
     }
 
     #[pallet::error]
@@ -555,30 +579,7 @@ pub mod pallet {
             ensure!(balance >= Zero::zero(), Error::<T>::InsufficientBalance);
             let number = if number >= balance { balance } else { number };
             let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
-                if optional_currency_id == result_id {
-                    let currency_id = ProposalCurrencyId::<T>::get(proposal_id)
-                        .ok_or(Error::<T>::ProposalIdNotExist)?;
-                    proposal_total_market_try_mutate!(
-                        proposal_id,
-                        old_amount,
-                        old_amount.checked_sub(&number).unwrap_or_else(Zero::zero)
-                    )?;
-                    <TokensOf<T> as Tokens<T::AccountId>>::burn(result_id, &who, number)?;
-                    let (number, reward, dividends) = Self::get_withdrawal_fee(number);
-                    ProposalAutonomyReward::<T>::try_mutate(
-                        proposal_id,
-                        |optional| -> Result<(), DispatchError> {
-                            let old = optional.unwrap_or_else(Zero::zero);
-                            *optional = Some(old.checked_add(&reward).unwrap_or_else(Zero::zero));
-                            Ok(())
-                        },
-                    )?;
-                    let dividends_account = T::Ruler::get_account(RulerModule::PlatformDividend)?;
-                    Self::appropriation(currency_id, &dividends_account, dividends)?;
-                    Self::appropriation(currency_id, &who, number)
-                } else {
-                    <TokensOf<T> as Tokens<T::AccountId>>::burn(optional_currency_id, &who, number)
-                }
+                Self::inner_retrieval(&who, proposal_id, result_id, optional_currency_id, number)
             })?;
             Self::deposit_event(Event::Retrieval(who, proposal_id, result_id, number));
             Ok(().into())
@@ -599,8 +600,10 @@ pub mod pallet {
             let update = T::Autonomy::temporary_results(proposal_id, &who)?;
             ensure!(result == update, Error::<T>::UploadedNotResult);
             let total = T::Autonomy::statistical_results(proposal_id, result);
-            // TODO Withdrawal rewards, the reward comes from the handling fee generated by the
-            // liquidation
+            let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
+                Self::inner_withdrawal_reward(&who, proposal_id, total)
+            })?;
+            Self::deposit_event(Event::WithdrawalReward(who, proposal_id, number));
             Ok(().into())
         }
 
