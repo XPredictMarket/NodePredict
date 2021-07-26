@@ -40,6 +40,7 @@ use sp_runtime::{
         InvalidTransaction, TransactionSource, TransactionValidity, ValidTransaction,
     },
 };
+use sp_std::collections::btree_map::BTreeMap;
 use xpmrl_traits::{
     autonomy::Autonomy, couple::LiquidityCouple, pool::LiquidityPool, tokens::Tokens,
     ProposalStatus,
@@ -92,6 +93,8 @@ use frame_support::traits::GenesisBuild;
 
 #[frame_support::pallet]
 pub mod pallet {
+    use sp_std::collections::btree_map::BTreeMap;
+
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Time};
     use frame_system::{offchain::*, pallet_prelude::*};
     use sp_runtime::traits::*;
@@ -209,15 +212,66 @@ pub mod pallet {
     #[pallet::getter(fn minimal_stake_number)]
     pub type MinimalStakeNumber<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
 
-    /// the minimum number of governance tokens that need to be staked to become a governance node
+    /// The minimum effective number of reports is twice of the previous time, if it is the first
+    /// time, it is twice the minimum pledge amount
+    #[pallet::storage]
+    #[pallet::getter(fn minimal_report_number)]
+    pub type MinimalReportNumber<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>, OptionQuery>;
+
+    /// How many reports have been raised for this report
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_report_staked_number)]
+    pub type ReportStakedNumber<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        ProposalIdOf<T>,
+        Twox64Concat,
+        T::AccountId,
+        BalanceOf<T>,
+        OptionQuery,
+    >;
+
+    /// How many individuals have been raised for the report, and what is the corresponding number
+    /// for each person
+    /// `true` indicates that the reporter is supported
+    /// `false` means support node
+    #[pallet::storage]
+    #[pallet::getter(fn report_account)]
+    pub type ReportAccount<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        ProposalIdOf<T>,
+        Twox64Concat,
+        T::AccountId,
+        BTreeMap<T::AccountId, (bool, BalanceOf<T>)>,
+        OptionQuery,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn statistical_report)]
+    pub type StatisticalReport<T: Config> =
+        StorageDoubleMap<_, Blake2_128Concat, T::ProposalId, Twox64Concat, bool, BalanceOf<T>>;
+
+    /// When the proposal was reported
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_report_time)]
+    pub type ProposalReportTime<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>, OptionQuery>;
+
     #[pallet::storage]
     #[pallet::getter(fn publicity_interval)]
     pub type PublicityInterval<T: Config> = StorageValue<_, MomentOf<T>, OptionQuery>;
 
+    #[pallet::storage]
+    #[pallet::getter(fn report_interval)]
+    pub type ReportInterval<T: Config> = StorageValue<_, MomentOf<T>, OptionQuery>;
+
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub minimal_number: BalanceOf<T>,
-        pub interval: u32,
+        pub publicity_interval: u32,
+        pub report_interval: u32,
     }
 
     #[cfg(feature = "std")]
@@ -225,7 +279,8 @@ pub mod pallet {
         fn default() -> Self {
             Self {
                 minimal_number: Zero::zero(),
-                interval: Zero::zero(),
+                publicity_interval: Zero::zero(),
+                report_interval: Zero::zero(),
             }
         }
     }
@@ -234,7 +289,8 @@ pub mod pallet {
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
             MinimalStakeNumber::<T>::set(Some(self.minimal_number));
-            PublicityInterval::<T>::set(Some(self.interval.into()));
+            PublicityInterval::<T>::set(Some(self.publicity_interval.into()));
+            ReportInterval::<T>::set(Some(self.report_interval.into()));
         }
     }
 
@@ -257,6 +313,9 @@ pub mod pallet {
         SetMinimalNumber(BalanceOf<T>),
         /// Set the publicity interval
         SetPublicityInterval(MomentOf<T>),
+        Report(T::AccountId, ProposalIdOf<T>, T::AccountId, BalanceOf<T>),
+        SecondedReport(T::AccountId, ProposalIdOf<T>, T::AccountId, bool),
+        TakeOut(T::AccountId, ProposalIdOf<T>, T::AccountId, BalanceOf<T>),
     }
 
     #[pallet::error]
@@ -283,6 +342,11 @@ pub mod pallet {
         AccountHasTagged,
         /// The account has not been tagged yet
         AccountNotTagged,
+        /// This node has already been reported
+        CurrentProposalReported,
+        ReportHashNotFound,
+        AttitudeNeedSame,
+        ProposalNotNeedSecond,
     }
 
     #[pallet::hooks]
@@ -370,6 +434,93 @@ pub mod pallet {
             let who = public.into_account();
             with_transaction_result(|| Self::inner_upload_result(&who, proposal_id, result))?;
             Self::deposit_event(Event::<T>::UploadResult(who, proposal_id, result));
+            Ok(().into())
+        }
+
+        /// Users can report wrong nodes that upload results that are inconsistent with actual
+        /// events.
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        pub fn report(
+            origin: OriginFor<T>,
+            proposal_id: ProposalIdOf<T>,
+            target: T::AccountId,
+            number: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let state = T::Pool::get_proposal_state(proposal_id)?;
+            ensure!(
+                state == ProposalStatus::ResultAnnouncement,
+                Error::<T>::ProposalAbnormalState,
+            );
+            with_transaction_result(|| Self::inner_report(&who, proposal_id, &target, number))?;
+            Self::deposit_event(Event::<T>::Report(who, proposal_id, target, number));
+            Ok(().into())
+        }
+
+        /// When reporting, it is necessary to pledge more than 2 times the pledge amount of
+        /// governance tokens of the reported node. If the reporter cannot raise so many tokens
+        /// himself, other users can pledge to support the reporter after launching a report call.
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        pub fn seconded_report(
+            origin: OriginFor<T>,
+            proposal_id: ProposalIdOf<T>,
+            target: T::AccountId,
+            number: BalanceOf<T>,
+            support: bool,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            ensure!(
+                !ProposalReportTime::<T>::contains_key(proposal_id),
+                Error::<T>::ProposalNotNeedSecond
+            );
+            with_transaction_result(|| {
+                Self::inner_seconded_report(&who, proposal_id, &target, number, support)
+            })?;
+            Self::deposit_event(Event::<T>::SecondedReport(
+                who,
+                proposal_id,
+                target,
+                support,
+            ));
+            Ok(().into())
+        }
+
+        /// After the report is completed, take out the staked tokens
+        ///
+        /// The dispatch origin for this call must be `Signed` by the transactor.
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        pub fn take_out(
+            origin: OriginFor<T>,
+            proposal_id: ProposalIdOf<T>,
+            target: T::AccountId,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+            let currency_id = T::StakeCurrencyId::get();
+            let number = with_transaction_result(|| {
+                let number = ReportAccount::<T>::try_mutate_exists(
+                    proposal_id,
+                    &who,
+                    |optional| -> Result<BalanceOf<T>, DispatchError> {
+                        let number = match optional {
+                            Some(val) => {
+                                val.get(&target)
+                                    .clone()
+                                    .ok_or(Error::<T>::ReportHashNotFound)?
+                                    .1
+                            }
+                            None => Err(Error::<T>::ReportHashNotFound)?,
+                        };
+                        *optional = None;
+                        Ok(number)
+                    },
+                )?;
+                <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)
+            })?;
+            Self::deposit_event(Event::<T>::TakeOut(who, proposal_id, target, number));
             Ok(().into())
         }
 
@@ -473,13 +624,16 @@ impl<T: Config> Pallet<T> {
         let max_id = T::Pool::max_proposal_id();
         let mut index: ProposalIdOf<T> = Zero::zero();
         let now = <TimeOf<T> as Time>::now();
-        let interval = PublicityInterval::<T>::get().unwrap_or_else(Zero::zero);
+        let publicity_interval = PublicityInterval::<T>::get().unwrap_or_else(Zero::zero);
+        let report_interval = ReportInterval::<T>::get().unwrap_or_else(Zero::zero);
         loop {
             if index >= max_id {
                 break;
             }
 
-            if let Ok(_) = with_transaction_result(|| Self::change_state(index, interval, now)) {}
+            if let Ok(_) = with_transaction_result(|| {
+                Self::change_state(index, publicity_interval, report_interval, now)
+            }) {}
 
             index = index
                 .checked_add(&One::one())
@@ -490,25 +644,33 @@ impl<T: Config> Pallet<T> {
 
     fn change_state(
         index: ProposalIdOf<T>,
-        interval: MomentOf<T>,
+        publicity_interval: MomentOf<T>,
+        report_interval: MomentOf<T>,
         now: MomentOf<T>,
     ) -> Result<(), DispatchError> {
         let state = T::Pool::get_proposal_state(index)?;
         let time = T::Pool::proposal_announcement_time(index)?;
+        let report_time = ProposalReportTime::<T>::get(index).unwrap_or_else(Zero::zero);
         if let Some(val) = ProposalAnnouncement::<T>::get(index) {
             ensure!(
                 state == ProposalStatus::ResultAnnouncement,
                 Error::<T>::ProposalAbnormalState
             );
-            if now - val > interval {
-                Self::inner_merge_result(index)?;
+            if now - val > publicity_interval && report_interval == Zero::zero() {
+                Self::inner_merge_result(index, true)?;
+            }
+
+            if report_interval > Zero::zero() && now - report_interval > report_time {
+                let a = StatisticalReport::<T>::get(index, true).unwrap_or_else(Zero::zero);
+                let b = StatisticalReport::<T>::get(index, false).unwrap_or_else(Zero::zero);
+                Self::inner_merge_result(index, a < b)?;
             }
         } else {
             ensure!(
                 state == ProposalStatus::WaitingForResults,
                 Error::<T>::ProposalAbnormalState
             );
-            if now - time > interval {
+            if now - time > publicity_interval {
                 let (id1, id2) = T::CouplePool::proposal_pair(index)?;
                 let sum1 = StatisticalResults::<T>::get(index, id1).unwrap_or_else(Zero::zero);
                 let sum2 = StatisticalResults::<T>::get(index, id2).unwrap_or_else(Zero::zero);
@@ -518,6 +680,12 @@ impl<T: Config> Pallet<T> {
             }
         }
         Ok(())
+    }
+
+    fn get_minimal_report_number(proposal_id: ProposalIdOf<T>) -> BalanceOf<T> {
+        let mut minimal = MinimalStakeNumber::<T>::get().unwrap_or_else(Zero::zero);
+        minimal = minimal.checked_add(&minimal).unwrap_or_else(Zero::zero);
+        MinimalReportNumber::<T>::get(proposal_id).unwrap_or(minimal)
     }
 
     fn ensure_proposal_status(
@@ -574,17 +742,17 @@ impl<T: Config> Pallet<T> {
                 }
             }
         })?;
-        T::Tokens::reserve(currency_id, &who, number)
+        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)
     }
 
     fn inner_unstake(who: &T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
         let (currency_id, number) = Self::unstake_and_untagged(&who)?;
-        T::Tokens::unreserve(currency_id, &who, number)
+        <TokensOf<T> as Tokens<T::AccountId>>::unreserve(currency_id, &who, number)
     }
 
     fn inner_slash(who: &T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
         let (currency_id, number) = Self::unstake_and_untagged(&who)?;
-        T::Tokens::slash_reserved(currency_id, &who, number)
+        <TokensOf<T> as Tokens<T::AccountId>>::slash_reserved(currency_id, &who, number)
     }
 
     fn inner_upload_result(
@@ -622,14 +790,113 @@ impl<T: Config> Pallet<T> {
         )
     }
 
-    fn inner_merge_result(proposal_id: T::ProposalId) -> Result<CurrencyIdOf<T>, DispatchError> {
+    fn inner_merge_result(
+        proposal_id: T::ProposalId,
+        direction: bool,
+    ) -> Result<CurrencyIdOf<T>, DispatchError> {
         let (id1, id2) = T::CouplePool::proposal_pair(proposal_id)?;
         let sum1 = StatisticalResults::<T>::get(proposal_id, id1).unwrap_or_else(Zero::zero);
         let sum2 = StatisticalResults::<T>::get(proposal_id, id2).unwrap_or_else(Zero::zero);
         ensure!(sum1 != sum2, Error::<T>::ResultIsEqual);
-        let result = if sum1 > sum2 { id1 } else { id2 };
+        let ids: [CurrencyIdOf<T>; 2] = [id1, id2];
+        let result = match direction {
+            true => ids[(sum1 < sum2) as usize],
+            false => ids[(sum1 > sum2) as usize],
+        };
         T::CouplePool::set_proposal_result(proposal_id, result)?;
         Ok(result)
+    }
+
+    fn inner_report(
+        who: &T::AccountId,
+        proposal_id: ProposalIdOf<T>,
+        target: &T::AccountId,
+        number: BalanceOf<T>,
+    ) -> Result<(), DispatchError> {
+        let currency_id = T::StakeCurrencyId::get();
+        let minimal = Self::get_minimal_report_number(proposal_id);
+        ReportStakedNumber::<T>::try_mutate(
+            proposal_id,
+            &target,
+            |optional| -> Result<(), DispatchError> {
+                match optional {
+                    Some(_) => Err(Error::<T>::CurrentProposalReported)?,
+                    None => *optional = Some(number),
+                }
+                Ok(())
+            },
+        )?;
+        let mut map = BTreeMap::<T::AccountId, (bool, BalanceOf<T>)>::new();
+        map.insert(target.clone(), (true, number));
+        ReportAccount::<T>::insert(proposal_id, &who, map);
+        StatisticalReport::<T>::insert(proposal_id, true, number);
+        if number > minimal {
+            let now = <TimeOf<T> as Time>::now();
+            ProposalReportTime::<T>::insert(proposal_id, now);
+        }
+        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)?;
+        Ok(())
+    }
+
+    fn inner_seconded_report(
+        who: &T::AccountId,
+        proposal_id: ProposalIdOf<T>,
+        target: &T::AccountId,
+        number: BalanceOf<T>,
+        support: bool,
+    ) -> Result<(), DispatchError> {
+        let currency_id = T::StakeCurrencyId::get();
+        let minimal = Self::get_minimal_report_number(proposal_id);
+        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)?;
+        ReportStakedNumber::<T>::try_mutate(
+            proposal_id,
+            &target,
+            |optional| -> Result<(), DispatchError> {
+                match optional {
+                    Some(old) => {
+                        let new = old.checked_add(&number).unwrap_or_else(Zero::zero);
+                        if new > minimal {
+                            let now = <TimeOf<T> as Time>::now();
+                            ProposalReportTime::<T>::insert(proposal_id, now);
+                        }
+                        *optional = Some(new);
+                        Ok(())
+                    }
+                    None => Err(Error::<T>::ReportHashNotFound)?,
+                }
+            },
+        )?;
+        ReportAccount::<T>::try_mutate(
+            proposal_id,
+            &who,
+            |optional| -> Result<(), DispatchError> {
+                let (mut map, new) = match optional {
+                    Some(val) => {
+                        let map = val.clone();
+                        let (s, o) = val.get(&target).ok_or(Error::<T>::ReportHashNotFound)?;
+                        ensure!(s == &support, Error::<T>::AttitudeNeedSame);
+                        (map, o.checked_add(&number).unwrap_or_else(Zero::zero))
+                    }
+                    None => (
+                        BTreeMap::<T::AccountId, (bool, BalanceOf<T>)>::new(),
+                        Zero::zero(),
+                    ),
+                };
+                map.insert(target.clone(), (support, new));
+                *optional = Some(map);
+                Ok(())
+            },
+        )?;
+        StatisticalReport::<T>::try_mutate(
+            proposal_id,
+            support,
+            |optional| -> Result<(), DispatchError> {
+                let old = optional.unwrap_or_else(Zero::zero);
+                let new = old.checked_add(&number).unwrap_or_else(Zero::zero);
+                *optional = Some(new);
+                Ok(())
+            },
+        )
     }
 }
 

@@ -275,7 +275,8 @@ fn testnet_genesis(
         }),
         autonomy: Some(AutonomyConfig {
             minimal_number: 10000 * 100000000,
-            interval: 2 * 24 * 60 * 60 * 1000, // 2 days
+            publicity_interval: 2 * 24 * 60 * 60 * 1000, // 2 days
+            report_interval: 3 * 24 * 60 * 60 * 1000,
         }),
         ruler: Some(RulerConfig {
             dividend_address: root_key,

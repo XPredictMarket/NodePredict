@@ -450,7 +450,8 @@ where
 
     let autonomy_genesis = autonomy::GenesisConfig::<Test> {
         minimal_number: 100,
-        interval: 0,
+        publicity_interval: 0,
+        report_interval: 0,
     };
 
     let mut t = frame_system::GenesisConfig::default()
