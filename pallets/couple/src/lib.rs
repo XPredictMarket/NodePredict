@@ -169,6 +169,11 @@ pub mod pallet {
     pub type ProposalCurrencyId<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, CurrencyIdOf<T>, OptionQuery>;
 
+    #[pallet::storage]
+    #[pallet::getter(fn proposal_total_volume)]
+    pub type ProposalTotalVolume<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>, OptionQuery>;
+
     /// It stores the liquidity token of the proposal
     #[pallet::storage]
     #[pallet::getter(fn proposal_liquidate_currency_id)]
@@ -568,6 +573,15 @@ pub mod pallet {
                     &who,
                     diff,
                 )?;
+                ProposalTotalVolume::<T>::try_mutate(
+                    proposal_id,
+                    |optional| -> Result<(), DispatchError> {
+                        let old = optional.unwrap_or_else(Zero::zero);
+                        let new = old.checked_add(&number).unwrap_or_else(Zero::zero);
+                        *optional = Some(new);
+                        Ok(())
+                    },
+                )?;
                 Ok(actual_number)
             })?;
             Self::deposit_event(Event::Buy(
@@ -620,6 +634,15 @@ pub mod pallet {
                 let acquired_currency = diff[other_currency.0];
                 let min = cmp::min(last_select_currency, acquired_currency);
                 <TokensOf<T> as Tokens<T::AccountId>>::burn_donate(other_currency.1, min)?;
+                ProposalTotalVolume::<T>::try_mutate(
+                    proposal_id,
+                    |optional| -> Result<(), DispatchError> {
+                        let old = optional.unwrap_or_else(Zero::zero);
+                        let new = old.checked_add(&min).unwrap_or_else(Zero::zero);
+                        *optional = Some(new);
+                        Ok(())
+                    },
+                )?;
                 let (actual_number, fee) = Self::get_fee(proposal_id, min)?;
                 proposal_total_market_fee_try_mutate!(
                     proposal_id,
