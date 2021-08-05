@@ -1,6 +1,7 @@
 use crate::{mock::*, Error, Payload};
 
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, traits::Time};
+use sp_std::collections::btree_map::BTreeMap;
 use xpmrl_traits::{couple::LiquidityCouple, pool::LiquidityPool, ProposalStatus};
 
 #[test]
@@ -159,6 +160,109 @@ fn test_upload_result() {
             AutonomyModule::upload_result(Origin::none(), payload.clone(), Default::default()),
             Error::<Test>::AccountHasAlreadyUploaded
         );
+    })
+}
+
+#[test]
+fn test_report() {
+    new_test_ext(|public_key_array| {
+        let account = public_key_array.get(0).unwrap();
+        let other = public_key_array.get(1).unwrap();
+        assert_ok!(Proposals::new_couple_proposal(*account, 1));
+        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
+            0,
+            ProposalStatus::WaitingForResults,
+        ));
+        assert_ok!(AutonomyModule::stake(Origin::signed(*account)));
+        assert_ok!(AutonomyModule::tagging(Origin::root(), *account));
+        let payload = Payload {
+            proposal_id: 0,
+            result: 4,
+            public: account.clone(),
+        };
+        assert_ok!(AutonomyModule::upload_result(
+            Origin::none(),
+            payload.clone(),
+            Default::default()
+        ));
+        assert_noop!(
+            AutonomyModule::report(Origin::signed(*other), 0, *account, 10),
+            Error::<Test>::ProposalAbnormalState
+        );
+        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
+            0,
+            ProposalStatus::ResultAnnouncement,
+        ));
+        let minimal = AutonomyModule::get_minimal_report_number(0) + 1;
+        assert_ok!(AutonomyModule::report(
+            Origin::signed(*other),
+            0,
+            *account,
+            minimal
+        ));
+        let event = Event::autonomy(crate::Event::Report(*other, 0, *account, minimal));
+        assert!(System::events().iter().any(|record| record.event == event));
+        assert_eq!(
+            AutonomyModule::report_staked_number(0, *account),
+            Some(minimal)
+        );
+        let mut map = BTreeMap::<AccountId, (bool, BalanceOf<Test>)>::new();
+        map.insert(*account, (true, minimal));
+        assert_eq!(AutonomyModule::report_account(0, *other), Some(map));
+        assert_noop!(
+            AutonomyModule::report(Origin::signed(*other), 0, *account, minimal),
+            Error::<Test>::CurrentProposalReported
+        );
+        assert_eq!(AutonomyModule::statistical_report(0, true), Some(minimal));
+        let now = <TimeOf<Test> as Time>::now();
+        assert_eq!(AutonomyModule::proposal_report_time(0), Some(now));
+    })
+}
+
+#[test]
+fn test_seconded_report() {
+    new_test_ext(|public_key_array| {
+        let account = public_key_array.get(0).unwrap();
+        let other = public_key_array.get(1).unwrap();
+        let third = public_key_array.get(2).unwrap();
+        assert_ok!(Proposals::new_couple_proposal(*account, 1));
+        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
+            0,
+            ProposalStatus::WaitingForResults,
+        ));
+        assert_ok!(AutonomyModule::stake(Origin::signed(*account)));
+        assert_ok!(AutonomyModule::tagging(Origin::root(), *account));
+        let payload = Payload {
+            proposal_id: 0,
+            result: 4,
+            public: account.clone(),
+        };
+        assert_ok!(AutonomyModule::upload_result(
+            Origin::none(),
+            payload.clone(),
+            Default::default()
+        ));
+        assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
+            0,
+            ProposalStatus::ResultAnnouncement,
+        ));
+        let minimal = AutonomyModule::get_minimal_report_number(0) - 1;
+        assert_ok!(AutonomyModule::report(
+            Origin::signed(*other),
+            0,
+            *account,
+            minimal
+        ));
+        assert_eq!(AutonomyModule::proposal_report_time(0), None);
+        assert_ok!(AutonomyModule::seconded_report(
+            Origin::signed(*third),
+            0,
+            *account,
+            2,
+            true
+        ));
+        let event = Event::autonomy(crate::Event::SecondedReport(*third, 0, *account, true));
+        assert!(System::events().iter().any(|record| record.event == event));
     })
 }
 

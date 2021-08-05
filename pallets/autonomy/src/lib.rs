@@ -221,7 +221,7 @@ pub mod pallet {
 
     /// How many reports have been raised for this report
     #[pallet::storage]
-    #[pallet::getter(fn proposal_report_staked_number)]
+    #[pallet::getter(fn report_staked_number)]
     pub type ReportStakedNumber<T: Config> = StorageDoubleMap<
         _,
         Blake2_128Concat,
