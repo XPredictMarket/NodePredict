@@ -194,7 +194,7 @@ After the result is announced, the voters and liquidity providers participating 
 
 ## 6. X predict market's Documentation
 
-[User Tutorials](/XPredictMarket/NodePredict/wiki/Tutorials)
+see [wiki/Tutorials](https://github.com/XPredictMarket/NodePredict/wiki/Tutorials)
 
 ## 7. Test Guide
 
@@ -224,4 +224,4 @@ Users can also add their own test cases.
 
 ## 8. Proposal Workflow
 
-see [doc/workflow.md](/XPredictMarket/NodePredict/wiki/Workflow)
+see [wiki/Workflow](https://github.com/XPredictMarket/NodePredict/wiki/Workflow)
