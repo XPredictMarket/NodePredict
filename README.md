@@ -155,6 +155,7 @@ After starting the single node or test node, add JSON types in the developer set
 ### Types
 
 In file [runtime/types.json](./runtime/types.json)
+
 Then you can start a transaction on the chain.
 
 ## 4. Main Processes
