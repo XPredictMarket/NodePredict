@@ -27,7 +27,7 @@
 
 ## 1. Overview
 
-X predict market is a decentralized forecasting market. It has its own independent asset management and liquidation system, supports multi currency cross chain transactions. It also supports users to create proposals on the chain, vote, provide or remove liquidity and other operations, and supports users to carry out cross chain asset transfer and other operations.
+X Predict Market is a decentralized forecasting market. It has its own independent asset management and liquidity system, supports multi token cross chain transactions. It also supports users to create proposals on the chain, vote, provide or remove liquidity and other operations, and supports users to carry out cross chain asset transfer and other operations.
 
 ## 2. Build
 
