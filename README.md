@@ -21,7 +21,7 @@
 -   [5. Pallet's Documentation](#5-pallets-documentation)
 -   [6. X predict market's Documentation](#6-x-predict-markets-documentation)
 -   [7. Test Guide](#7-test-guide)
-    -   [Integration tests](#integration-tests)
+    -   [Unit tests](#unit-tests)
 -   [8. Proposal Workflow](#8-proposal-workflow)
 
 <!-- /TOC -->
@@ -191,7 +191,7 @@ see [wiki/Tutorials](https://github.com/XPredictMarket/NodePredict/wiki/Tutorial
 
 ## 7. Test Guide
 
-### Integration tests
+### Unit tests
 
 Each module in the project has its own independent test. With required compiling environment, the overall test is carried out:
 
