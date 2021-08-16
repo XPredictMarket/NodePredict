@@ -231,7 +231,12 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
             let currency_id = T::MineTokenCurrencyId::get();
             let module_account: T::AccountId = T::ModuleId::get().into_account();
-            T::Tokens::transfer(currency_id, &who, &module_account, number)?;
+            <TokensOf<T> as Tokens<T::AccountId>>::transfer(
+                currency_id,
+                &who,
+                &module_account,
+                number,
+            )?;
             Self::deposit_event(Event::Deposit(who, module_account, number));
             Ok(().into())
         }
@@ -241,8 +246,14 @@ pub mod pallet {
             let _ = ensure_root(origin)?;
             let currency_id = T::MineTokenCurrencyId::get();
             let module_account: T::AccountId = T::ModuleId::get().into_account();
-            let balance = T::Tokens::balance(currency_id, &module_account);
-            T::Tokens::transfer(currency_id, &module_account, &to, balance)?;
+            let balance =
+                <TokensOf<T> as Tokens<T::AccountId>>::balance(currency_id, &module_account);
+            <TokensOf<T> as Tokens<T::AccountId>>::transfer(
+                currency_id,
+                &module_account,
+                &to,
+                balance,
+            )?;
             Self::deposit_event(Event::Withdrtawal(module_account, to, balance));
             Ok(().into())
         }
@@ -362,7 +373,7 @@ impl<T: Config> Pallet<T> {
                 None => number,
             }
         )?;
-        T::Tokens::reserve(currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)?;
         Ok((now, number))
     }
 
@@ -402,7 +413,7 @@ impl<T: Config> Pallet<T> {
                 None => Zero::zero(),
             }
         )?;
-        T::Tokens::unreserve(currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::unreserve(currency_id, &who, number)?;
         Ok((now, number))
     }
 
@@ -539,7 +550,7 @@ impl<T: Config> Pallet<T> {
             end,
         );
         ensure!(
-            T::Tokens::balance(currency_id, &module_account) >= sum,
+            <TokensOf<T> as Tokens<T::AccountId>>::balance(currency_id, &module_account) >= sum,
             Error::<T>::InsufficientBalance,
         );
         AccountClaimedBlocknumber::<T>::try_mutate(

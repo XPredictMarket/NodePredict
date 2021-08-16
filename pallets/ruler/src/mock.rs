@@ -65,6 +65,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
     let ruler_genesis = ruler::GenesisConfig::<Test> {
         dividend_address: 1,
+        burn_address: 1,
     };
 
     ruler_genesis.assimilate_storage(&mut t).unwrap();

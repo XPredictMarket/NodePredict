@@ -93,6 +93,13 @@ pub mod pallet {
             MomentOf<T>,
             BalanceOf<T>,
         ),
+        SlashReserved(
+            CurrencyIdOf<T>,
+            T::ChainId,
+            T::AccountId,
+            MomentOf<T>,
+            BalanceOf<T>,
+        ),
     }
 
     #[pallet::error]
@@ -125,7 +132,7 @@ pub mod pallet {
             let burn_address = Self::get_burn_address()?;
             ensure!(who != burn_address, Error::<T>::ApproveSelf);
             with_transaction_result(|| {
-                T::Tokens::reserve(currency_id, &who, number)?;
+                let number = T::Tokens::reserve(currency_id, &who, number)?;
                 Allowance::<T>::try_mutate(
                     who.clone(),
                     currency_id,
@@ -212,6 +219,13 @@ pub mod pallet {
                 T::Tokens::slash_reserved(currency_id, &address, old.number)?;
                 Ok(())
             })?;
+            Self::deposit_event(Event::SlashReserved(
+                currency_id,
+                chain_id,
+                address,
+                time,
+                old.number,
+            ));
             Ok(().into())
         }
     }

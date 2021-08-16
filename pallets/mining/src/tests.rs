@@ -1,36 +1,9 @@
-use std::time::SystemTime;
-
 use crate::{mock::*, MineInfo, Point};
 use frame_support::assert_ok;
-use xpmrl_couple::Proposal;
 
-fn befor_test() -> u128 {
-    let proposal = Proposal {
-        title: "how to test this module".as_bytes().to_vec(),
-        category_id: 1,
-        detail: "proposal detail".as_bytes().to_vec(),
-    };
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap();
-    let now = now.as_secs() as u32 + 1_000_000;
-    let currency_id: u32 = 1;
-    let fee_rate: u32 = 200;
-    let number = 100000000;
-    assert_ok!(XPMRLProposals::new_proposal(
-        Origin::signed(1),
-        proposal.title.clone(),
-        [
-            "the one".as_bytes().to_vec(),
-            "other one".as_bytes().to_vec()
-        ],
-        now,
-        proposal.category_id,
-        currency_id,
-        number,
-        fee_rate,
-        proposal.detail.clone()
-    ));
+fn befor_test() -> BalanceOf<Test> {
+    let numebr: BalanceOf<Test> = 100000000;
+    assert_ok!(Proposals::new_couple_proposal(1, 1, numebr));
     let proposal_mine = MineInfo {
         perblock: 1000000,
         from: 200,
@@ -44,7 +17,7 @@ fn befor_test() -> u128 {
         proposal_mine.to
     ));
     assert_eq!(MiningModule::proposal_mine_info(0), Some(proposal_mine));
-    number
+    numebr
 }
 
 #[test]
