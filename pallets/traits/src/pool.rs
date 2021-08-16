@@ -16,13 +16,15 @@ pub trait LiquidityPool<T>
 where
     T: ProposalSystem<T::AccountId> + frame_system::Config,
 {
-    fn get_proposa_minimum_interval_time() -> MomentOf<T>;
+    fn get_proposal_minimum_interval_time() -> MomentOf<T>;
     fn is_currency_id_used(currency_id: CurrencyIdOf<T>) -> bool;
     fn get_next_proposal_id() -> Result<ProposalIdOf<T>, DispatchError>;
     fn init_proposal(
         proposal_id: ProposalIdOf<T>,
         owner: &T::AccountId,
         state: ProposalStatus,
+        create_time: MomentOf<T>,
+        close_time: MomentOf<T>,
         version: VersionIdOf<T>,
     );
     fn append_used_currency(currency_id: CurrencyIdOf<T>);
@@ -35,15 +37,15 @@ where
         new_state: ProposalStatus,
     ) -> Result<ProposalStatus, DispatchError>;
 
-    fn get_earn_trading_fee_decimals() -> u8;
-    fn proposal_liquidity_provider_fee_rate() -> u32;
-
     fn proposal_owner(proposal_id: ProposalIdOf<T>) -> Result<T::AccountId, DispatchError>;
+    fn proposal_announcement_time(
+        proposal_id: ProposalIdOf<T>,
+    ) -> Result<MomentOf<T>, DispatchError>;
 }
 
 pub trait LiquiditySubPool<T>
 where
     T: ProposalSystem<T::AccountId> + frame_system::Config,
 {
-    fn finally_locked(proposal_id: T::ProposalId) -> Result<(), DispatchError>;
+    fn finally_locked(proposal_id: ProposalIdOf<T>) -> Result<(), DispatchError>;
 }

@@ -5,7 +5,6 @@ use sp_runtime::traits::AtLeast32BitUnsigned;
 use sp_std::fmt::Debug;
 
 pub trait ProposalSystem<AccountId> {
-    /// Get the timestamp of the current time
     type Time: Time;
     type ProposalId: FullCodec
         + Eq

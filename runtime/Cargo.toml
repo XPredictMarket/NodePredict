@@ -44,12 +44,13 @@ hex-literal = { version = "0.3.1", optional = true }
 
 proposals = { version = "0.1.0", default-features = false, path = "../pallets/proposals", package = "xpmrl-proposals" }
 couple = { version = "0.1.0", default-features = false, path = "../pallets/couple", package = "xpmrl-couple" }
-mining = { version = "0.1.0", default-features = false, path = "../pallets/mining", package = "xpmrl-mining" }
-cross = { version = "0.1.0", default-features = false, path = "../pallets/cross", package = "xpmrl-cross" }
 autonomy = { version = "0.1.0", default-features = false, path = "../pallets/autonomy", package = "xpmrl-autonomy" }
+cross = { version = "0.1.0", default-features = false, path = "../pallets/cross", package = "xpmrl-cross" }
+mining = { version = "0.1.0", default-features = false, path = "../pallets/mining", package = "xpmrl-mining" }
 proposals-info-runtime-api = { version = "0.1.0", path = "../pallets/proposals/runtime-api", default-features = false }
 tokens = { version = "0.1.0", default-features = false, path = "../pallets/tokens", package = "xpmrl-tokens" }
 traits = { version = "0.1.0", default-features = false, path = "../pallets/traits", package = "xpmrl-traits" }
+ruler = { version = "0.1.0", default-features = false, path = "../pallets/ruler", package = "xpmrl-ruler" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "4.0.0" }
@@ -83,13 +84,14 @@ std = [
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"couple/std",
-	"mining/std",
 	"autonomy/std",
 	"proposals-info-runtime-api/std",
 	"proposals/std",
+	"cross/std",
+	"mining/std",
 	"tokens/std",
 	"traits/std",
-	"cross/std",
+	"ruler/std",
 ]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",

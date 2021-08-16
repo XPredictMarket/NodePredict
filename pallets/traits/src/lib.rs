@@ -8,8 +8,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod autonomy;
 pub mod couple;
 pub mod pool;
+pub mod ruler;
 pub mod system;
 pub mod tokens;
 
@@ -28,4 +30,12 @@ pub enum ProposalStatus {
     ResultAnnouncement,
     Inlitigation,
     End,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, RuntimeDebug, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Deserialize, Serialize))]
+pub enum RulerModule {
+    PlatformDividend,
+    CrossChainBurn,
+    NotUsed,
 }

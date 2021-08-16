@@ -4453,6 +4453,7 @@ dependencies = [
  "xpmrl-cross",
  "xpmrl-mining",
  "xpmrl-proposals",
+ "xpmrl-ruler",
  "xpmrl-tokens",
  "xpmrl-traits",
 ]
@@ -8485,6 +8486,7 @@ dependencies = [
  "serde",
  "sp-core",
  "sp-io",
+ "sp-keystore",
  "sp-runtime",
  "sp-std",
  "xpmrl-tokens",
@@ -8552,18 +8554,20 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "frame-system",
+ "pallet-balances",
  "parity-scale-codec",
  "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "xpmrl-tokens",
  "xpmrl-traits",
  "xpmrl-utils",
 ]
 
 [[package]]
-name = "xpmrl-stake"
+name = "xpmrl-ruler"
 version = "0.1.0"
 dependencies = [
  "frame-support",
@@ -8574,6 +8578,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "xpmrl-traits",
 ]
 
 [[package]]

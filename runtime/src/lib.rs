@@ -46,9 +46,9 @@ pub use couple;
 pub use couple::pallet::Proposal;
 use cross;
 use mining;
-/// Import the template pallet.
 pub use proposals;
 use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
+use ruler;
 pub use tokens;
 use traits::{system::ProposalSystem, ProposalStatus};
 
@@ -284,24 +284,33 @@ impl ProposalSystem<AccountId> for Runtime {
 }
 
 parameter_types! {
-    pub const EarnTradingFeeDecimals: u8 = FEE_DECIMALS;
+    pub const GovernanceCurrencyId: CurrencyId = 1;
+    pub const RewardId: ModuleId = ModuleId(*b"xpreward");
 }
 
 impl proposals::Config for Runtime {
     type Event = Event;
     type SubPool = Couple;
-    type CouplePool = Couple;
-    type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
+    type GovernanceCurrencyId = GovernanceCurrencyId;
+    type RewardId = RewardId;
 }
 
 parameter_types! {
     pub const CurrentLiquidateVersionId: VersionId = 1;
+    pub const EarnTradingFeeDecimals: u8 = FEE_DECIMALS;
+}
+
+impl ruler::Config for Runtime {
+    type Event = Event;
 }
 
 impl couple::Config for Runtime {
     type Event = Event;
     type Pool = Proposals;
+    type Ruler = Ruler;
+    type Autonomy = Autonomy;
     type CurrentLiquidateVersionId = CurrentLiquidateVersionId;
+    type EarnTradingFeeDecimals = EarnTradingFeeDecimals;
 }
 
 parameter_types! {
@@ -352,6 +361,7 @@ impl cross::Config for Runtime {
     type Tokens = Tokens;
     type Time = Timestamp;
     type ChainId = ChainId;
+    type Ruler = Ruler;
 }
 
 parameter_types! {
@@ -384,12 +394,13 @@ construct_runtime!(
         TransactionPayment: pallet_transaction_payment::{Module, Storage},
         Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
         // Include the custom logic from the template pallet in the runtime.
-        Proposals: proposals::{Module, Call, Config, Storage, Event<T>},
-        Couple: couple::{Module, Call, Storage, Event<T>},
-        Mining: mining::{Module, Call, Storage, Event<T>},
-        Cross: cross::{Module, Call, Config<T>, Storage, Event<T>},
+        Ruler: ruler::{Module, Call, Config<T>, Storage, Event<T>},
+        Proposals: proposals::{Module, Call, Config<T>, Storage, Event<T>},
+        Couple: couple::{Module, Call, Config, Storage, Event<T>},
         Autonomy: autonomy::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
         Tokens: tokens::{Module, Call, Config<T>, Storage, Event<T>},
+        Mining: mining::{Module, Call, Storage, Event<T>},
+        Cross: cross::{Module, Call, Storage, Event<T>},
     }
 );
 
@@ -560,7 +571,7 @@ impl_runtime_apis! {
         fn get_proposal_info(_: VersionId, proposal_id: ProposalId) -> ProposalInfo<CategoryId, Balance, Moment, CurrencyId> {
             let proposal = Couple::proposals(proposal_id).unwrap_or_default();
             let (yes, no) = Couple::proposal_total_optional_market(proposal_id).unwrap_or_default();
-            let close_time = Couple::proposal_close_time(proposal_id).unwrap_or_default();
+            let close_time = Proposals::proposal_close_time(proposal_id).unwrap_or_default();
             let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or_default();
             let pairs = Couple::pool_pairs(proposal_id).unwrap_or_default();
             let yes_name = Tokens::currencies(pairs.0).unwrap_or_default().name;
@@ -604,7 +615,7 @@ impl_runtime_apis! {
             let total = Couple::proposal_total_market(proposal_id).unwrap_or_default();
             let liquidity = Couple::proposal_total_market_liquid(proposal_id).unwrap_or_default();
             let balance = Tokens::free_balance_of(account_id, currency_id).unwrap_or_default();
-            let close_time = Couple::proposal_close_time(proposal_id).unwrap_or_default();
+            let close_time = Proposals::proposal_close_time(proposal_id).unwrap_or_default();
             let status = Proposals::proposal_status(proposal_id).unwrap_or(ProposalStatus::OriginalPrediction);
 
             PersonalProposalInfo {
