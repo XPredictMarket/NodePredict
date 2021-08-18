@@ -378,7 +378,7 @@ pub mod pallet {
             let now = <TimeOf<T> as Time>::now();
             let minimum_interval_time = T::Pool::get_proposal_minimum_interval_time();
             ensure!(
-                close_time - now > minimum_interval_time,
+                close_time > now + minimum_interval_time,
                 Error::<T>::CloseTimeMustLargeThanNow
             );
             ensure!(
