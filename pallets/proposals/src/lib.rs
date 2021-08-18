@@ -16,6 +16,7 @@
 //!
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::unused_unit)]
 
 pub use pallet::*;
 
@@ -351,7 +352,7 @@ pub mod pallet {
                     proposal_id,
                     &who,
                     |optional| -> Result<BalanceOf<T>, DispatchError> {
-                        match optional.clone() {
+                        match *optional {
                             Some(val) => {
                                 *optional = None;
                                 Ok(val.0)
@@ -549,7 +550,7 @@ impl<T: Config> Pallet<T> {
             &who,
             |optional| -> Result<(), DispatchError> {
                 match optional {
-                    Some(_) => Err(Error::<T>::NonRrepeatableStake)?,
+                    Some(_) => Err(Error::<T>::NonRrepeatableStake.into()),
                     None => {
                         *optional = Some((number, opinion));
                         Ok(())
@@ -567,7 +568,7 @@ impl<T: Config> Pallet<T> {
                 Ok(())
             },
         )?;
-        let number = <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)?;
+        let number = <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, who, number)?;
         Ok(number)
     }
 
@@ -591,7 +592,7 @@ impl<T: Config> Pallet<T> {
                 <TokensOf<T> as Tokens<T::AccountId>>::transfer(
                     currency_id,
                     &reward_account,
-                    &who,
+                    who,
                     number,
                 )
             }
@@ -672,7 +673,7 @@ impl<T: Config> LiquidityPool<T> for Pallet<T> {
     fn get_proposal_state(proposal_id: ProposalIdOf<T>) -> Result<Status, DispatchError> {
         match ProposalStatus::<T>::get(proposal_id) {
             Some(state) => Ok(state),
-            None => Err(Error::<T>::ProposalIdNotExist)?,
+            None => Err(Error::<T>::ProposalIdNotExist.into()),
         }
     }
 
@@ -686,7 +687,7 @@ impl<T: Config> LiquidityPool<T> for Pallet<T> {
     fn proposal_owner(proposal_id: ProposalIdOf<T>) -> Result<T::AccountId, DispatchError> {
         match ProposalOwner::<T>::get(proposal_id) {
             Some(owner) => Ok(owner),
-            None => Err(Error::<T>::ProposalIdNotExist)?,
+            None => Err(Error::<T>::ProposalIdNotExist.into()),
         }
     }
 
@@ -695,7 +696,7 @@ impl<T: Config> LiquidityPool<T> for Pallet<T> {
     ) -> Result<MomentOf<T>, DispatchError> {
         match ProposalAnnouncementTime::<T>::get(proposal_id) {
             Some(time) => Ok(time),
-            None => Err(Error::<T>::ProposalIdNotExist)?,
+            None => Err(Error::<T>::ProposalIdNotExist.into()),
         }
     }
 }

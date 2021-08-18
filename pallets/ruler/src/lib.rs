@@ -15,6 +15,7 @@
 //!
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::unused_unit)]
 
 #[cfg(test)]
 mod mock;
@@ -132,7 +133,7 @@ pub mod pallet {
                             *optional = None;
                             Ok(())
                         }
-                        None => Err(Error::<T>::PermissionDenied)?,
+                        None => Err(Error::<T>::PermissionDenied.into()),
                     }
                 },
             )?;
@@ -163,7 +164,7 @@ impl<T: Config> RulerAccounts<T> for Pallet<T> {
     fn get_account(module: RulerModule) -> Result<T::AccountId, DispatchError> {
         match RulerAddress::<T>::get(module) {
             Some(account) => Ok(account),
-            None => Err(Error::<T>::ModuleNotAllowed)?,
+            None => Err(Error::<T>::ModuleNotAllowed.into()),
         }
     }
 }

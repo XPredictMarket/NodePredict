@@ -18,6 +18,8 @@
 //!
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::unused_unit)]
+#![allow(clippy::type_complexity)]
 
 #[cfg(test)]
 mod mock;
@@ -506,13 +508,8 @@ pub mod pallet {
                     &who,
                     |optional| -> Result<BalanceOf<T>, DispatchError> {
                         let number = match optional {
-                            Some(val) => {
-                                val.get(&target)
-                                    .clone()
-                                    .ok_or(Error::<T>::ReportHashNotFound)?
-                                    .1
-                            }
-                            None => Err(Error::<T>::ReportHashNotFound)?,
+                            Some(val) => val.get(&target).ok_or(Error::<T>::ReportHashNotFound)?.1,
+                            None => return Err(Error::<T>::ReportHashNotFound.into()),
                         };
                         *optional = None;
                         Ok(number)
@@ -537,12 +534,12 @@ pub mod pallet {
                 Error::<T>::AccountNotStaked
             );
             AutonomyAccount::<T>::try_mutate(&account, |option| -> Result<(), DispatchError> {
-                if let Some(_) = option {
-                    Err(Error::<T>::AccountHasTagged)?
+                if option.is_some() {
+                    Err(Error::<T>::AccountHasTagged.into())
                 } else {
                     *option = Some(());
+                    Ok(())
                 }
-                Ok(())
             })?;
             Self::deposit_event(Event::<T>::Tagging(account));
             Ok(().into())
@@ -560,12 +557,12 @@ pub mod pallet {
             AutonomyAccount::<T>::try_mutate_exists(
                 &account,
                 |option| -> Result<(), DispatchError> {
-                    if let Some(_) = option {
+                    if option.is_some() {
                         *option = None;
+                        Ok(())
                     } else {
-                        Err(Error::<T>::AccountNotTagged)?
+                        Err(Error::<T>::AccountNotTagged.into())
                     }
-                    Ok(())
                 },
             )?;
             Self::deposit_event(Event::<T>::Untagging(account));
@@ -595,7 +592,7 @@ pub mod pallet {
             interval: MomentOf<T>,
         ) -> DispatchResultWithPostInfo {
             let _ = ensure_root(origin)?;
-            PublicityInterval::<T>::set(Some(interval.into()));
+            PublicityInterval::<T>::set(Some(interval));
             Self::deposit_event(Event::<T>::SetPublicityInterval(interval));
             Ok(().into())
         }
@@ -631,9 +628,10 @@ impl<T: Config> Pallet<T> {
                 break;
             }
 
-            if let Ok(_) = with_transaction_result(|| {
+            let result = with_transaction_result(|| {
                 Self::change_state(index, publicity_interval, report_interval, now)
-            }) {}
+            });
+            if result.is_ok() {}
 
             index = index
                 .checked_add(&One::one())
@@ -710,7 +708,7 @@ impl<T: Config> Pallet<T> {
             },
         )?;
         AutonomyAccount::<T>::try_mutate_exists(&who, |option| -> Result<(), DispatchError> {
-            if let Some(_) = option {
+            if option.is_some() {
                 *option = None;
             }
             Ok(())
@@ -735,24 +733,24 @@ impl<T: Config> Pallet<T> {
         let number = MinimalStakeNumber::<T>::get().unwrap_or_else(Zero::zero);
         StakedAccount::<T>::try_mutate(&who, |option_num| -> Result<(), DispatchError> {
             match option_num {
-                Some(_) => Err(Error::<T>::AccountAlreadyStaked)?,
+                Some(_) => Err(Error::<T>::AccountAlreadyStaked.into()),
                 None => {
                     *option_num = Some(number);
                     Ok(())
                 }
             }
         })?;
-        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)
+        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, who, number)
     }
 
     fn inner_unstake(who: &T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
-        let (currency_id, number) = Self::unstake_and_untagged(&who)?;
-        <TokensOf<T> as Tokens<T::AccountId>>::unreserve(currency_id, &who, number)
+        let (currency_id, number) = Self::unstake_and_untagged(who)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::unreserve(currency_id, who, number)
     }
 
     fn inner_slash(who: &T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
-        let (currency_id, number) = Self::unstake_and_untagged(&who)?;
-        <TokensOf<T> as Tokens<T::AccountId>>::slash_reserved(currency_id, &who, number)
+        let (currency_id, number) = Self::unstake_and_untagged(who)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::slash_reserved(currency_id, who, number)
     }
 
     fn inner_upload_result(
@@ -770,7 +768,7 @@ impl<T: Config> Pallet<T> {
             &who,
             |option_id| -> Result<(), DispatchError> {
                 match option_id {
-                    Some(_) => Err(Error::<T>::AccountHasAlreadyUploaded)?,
+                    Some(_) => Err(Error::<T>::AccountHasAlreadyUploaded.into()),
                     None => {
                         *option_id = Some(result);
                         Ok(())
@@ -820,10 +818,12 @@ impl<T: Config> Pallet<T> {
             &target,
             |optional| -> Result<(), DispatchError> {
                 match optional {
-                    Some(_) => Err(Error::<T>::CurrentProposalReported)?,
-                    None => *optional = Some(number),
+                    Some(_) => Err(Error::<T>::CurrentProposalReported.into()),
+                    None => {
+                        *optional = Some(number);
+                        Ok(())
+                    }
                 }
-                Ok(())
             },
         )?;
         let mut map = BTreeMap::<T::AccountId, (bool, BalanceOf<T>)>::new();
@@ -834,7 +834,7 @@ impl<T: Config> Pallet<T> {
             let now = <TimeOf<T> as Time>::now();
             ProposalReportTime::<T>::insert(proposal_id, now);
         }
-        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, who, number)?;
         Ok(())
     }
 
@@ -847,7 +847,7 @@ impl<T: Config> Pallet<T> {
     ) -> Result<(), DispatchError> {
         let currency_id = T::StakeCurrencyId::get();
         let minimal = Self::get_minimal_report_number(proposal_id);
-        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, who, number)?;
         ReportStakedNumber::<T>::try_mutate(
             proposal_id,
             &target,
@@ -862,7 +862,7 @@ impl<T: Config> Pallet<T> {
                         *optional = Some(new);
                         Ok(())
                     }
-                    None => Err(Error::<T>::ReportHashNotFound)?,
+                    None => Err(Error::<T>::ReportHashNotFound.into()),
                 }
             },
         )?;
@@ -873,7 +873,7 @@ impl<T: Config> Pallet<T> {
                 let (mut map, new) = match optional {
                     Some(val) => {
                         let map = val.clone();
-                        let (s, o) = val.get(&target).ok_or(Error::<T>::ReportHashNotFound)?;
+                        let (s, o) = val.get(target).ok_or(Error::<T>::ReportHashNotFound)?;
                         ensure!(s == &support, Error::<T>::AttitudeNeedSame);
                         (map, o.checked_add(&number).unwrap_or_else(Zero::zero))
                     }
@@ -938,7 +938,7 @@ impl<T: Config> Autonomy<T> for Pallet<T> {
     ) -> Result<CurrencyIdOf<T>, DispatchError> {
         match TemporaryResults::<T>::get(proposal_id, &who) {
             Some(result) => Ok(result),
-            None => Err(Error::<T>::AccountNotUpload)?,
+            None => Err(Error::<T>::AccountNotUpload.into()),
         }
     }
 

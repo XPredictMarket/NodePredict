@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use predict_runtime::{
     AccountId, AuraConfig, AutonomyConfig, BalancesConfig, CoupleConfig, GenesisConfig,
     GrandpaConfig, ProposalsConfig, RulerConfig, Signature, SudoConfig, SystemConfig, TokensConfig,

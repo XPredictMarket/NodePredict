@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
+#![allow(clippy::from_over_into)]
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -47,7 +48,6 @@ pub use couple::pallet::Proposal;
 /// Import the template pallet.
 pub use proposals;
 use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
-use ruler;
 pub use tokens;
 use traits::{system::ProposalSystem, ProposalStatus};
 

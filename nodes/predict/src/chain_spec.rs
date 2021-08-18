@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use hex_literal::hex;
 use predict_runtime::{
     AccountId, AuraConfig, AutonomyConfig, BalancesConfig, CoupleConfig, GenesisConfig,
