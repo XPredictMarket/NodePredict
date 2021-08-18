@@ -408,6 +408,17 @@ impl<T: Config> Pallet<T> {
                 .ok_or(Error::<T>::BalanceOverflow)?
         )?;
         Self::appropriation(optional_currency_id, &who, diff)?;
+        ProposalTotalVolume::<T>::try_mutate(
+            proposal_id,
+            |optional| -> Result<(), DispatchError> {
+                let old = optional.unwrap_or_else(Zero::zero);
+                *optional = Some(
+                    old.checked_add(&number)
+                        .ok_or(Error::<T>::BalanceOverflow)?,
+                );
+                Ok(())
+            },
+        )?;
         Ok(actual_number)
     }
 
@@ -441,6 +452,14 @@ impl<T: Config> Pallet<T> {
             .unwrap_or_else(Zero::zero);
         let acquired_currency = diff[other_currency.0];
         let min = cmp::min(last_select_currency, acquired_currency);
+        ProposalTotalVolume::<T>::try_mutate(
+            proposal_id,
+            |optional| -> Result<(), DispatchError> {
+                let old = optional.unwrap_or_else(Zero::zero);
+                *optional = Some(old.checked_add(&min).ok_or(Error::<T>::BalanceOverflow)?);
+                Ok(())
+            },
+        )?;
         <TokensOf<T> as Tokens<T::AccountId>>::burn_donate(other_currency.1, min)?;
         let (actual_number, fee) = Self::get_fee_from_total(proposal_id, min)?;
         proposal_total_market_fee_try_mutate!(
