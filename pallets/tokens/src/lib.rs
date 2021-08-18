@@ -16,6 +16,7 @@
 //!
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::unused_unit)]
 
 pub use pallet::*;
 
@@ -458,11 +459,11 @@ impl<T: Config> Pallet<T> {
     ) -> Result<BalanceOf<T>, DispatchError> {
         Self::ensure_currency_id(currency_id)?;
         if currency_id == T::NativeCurrencyId::get() {
-            let old_balance = T::Currency::free_balance(&to);
+            let old_balance = T::Currency::free_balance(to);
             let new_balance = old_balance
                 .checked_add(&number)
                 .ok_or(Error::<T>::BalanceOverflow)?;
-            T::Currency::make_free_balance_be(&to, new_balance);
+            T::Currency::make_free_balance_be(to, new_balance);
             Ok(number)
         } else {
             let actual_number = FreeBalanceOf::<T>::try_mutate(
@@ -501,9 +502,9 @@ impl<T: Config> Pallet<T> {
     ) -> Result<BalanceOf<T>, DispatchError> {
         Self::ensure_currency_id(currency_id)?;
         if currency_id == T::NativeCurrencyId::get() {
-            let old_balance = T::Currency::free_balance(&from);
+            let old_balance = T::Currency::free_balance(from);
             let new_balance = old_balance.checked_sub(&number).unwrap_or_else(Zero::zero);
-            T::Currency::make_free_balance_be(&from, new_balance);
+            T::Currency::make_free_balance_be(from, new_balance);
             Ok(number)
         } else {
             let actual_number = FreeBalanceOf::<T>::try_mutate(
@@ -542,10 +543,10 @@ impl<T: Config> Pallet<T> {
         Self::ensure_currency_id(currency_id)?;
         if currency_id == T::NativeCurrencyId::get() {
             ensure!(
-                T::Currency::free_balance(&from) >= number,
+                T::Currency::free_balance(from) >= number,
                 Error::<T>::InsufficientBalance
             );
-            T::Currency::transfer(&from, &to, number, ExistenceRequirement::AllowDeath)?;
+            T::Currency::transfer(from, to, number, ExistenceRequirement::AllowDeath)?;
             Ok(number)
         } else {
             ensure!(
@@ -612,7 +613,7 @@ impl<T: Config> Pallet<T> {
             |items| -> Result<BalanceOf<T>, DispatchError> {
                 let mut new_items = items.clone().unwrap_or_default();
                 let number = {
-                    if let Some(x) = new_items.get(&spender) {
+                    if let Some(x) = new_items.get(spender) {
                         x.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?
                     } else {
                         number
@@ -632,10 +633,10 @@ impl<T: Config> Pallet<T> {
     ) -> Result<BalanceOf<T>, DispatchError> {
         if currency_id == T::NativeCurrencyId::get() {
             ensure!(
-                T::Currency::free_balance(&from) >= number,
+                T::Currency::free_balance(from) >= number,
                 Error::<T>::InsufficientBalance
             );
-            T::Currency::reserve(&from, number)?;
+            T::Currency::reserve(from, number)?;
             Ok(number)
         } else {
             let actual_number = FreeBalanceOf::<T>::try_mutate(
@@ -668,10 +669,10 @@ impl<T: Config> Pallet<T> {
     ) -> Result<BalanceOf<T>, DispatchError> {
         Self::ensure_currency_id(currency_id)?;
         if currency_id == T::NativeCurrencyId::get() {
-            let old_value = T::Currency::reserved_balance(&from);
+            let old_value = T::Currency::reserved_balance(from);
             let new_value = old_value.checked_sub(&number).unwrap_or_else(Zero::zero);
             let (_, actual_number) = T::Currency::slash_reserved(
-                &from,
+                from,
                 old_value.checked_sub(&new_value).unwrap_or_else(Zero::zero),
             );
             Ok(actual_number)
@@ -708,10 +709,10 @@ impl<T: Config> Pallet<T> {
     ) -> Result<BalanceOf<T>, DispatchError> {
         if currency_id == T::NativeCurrencyId::get() {
             ensure!(
-                T::Currency::reserved_balance(&from) >= number,
+                T::Currency::reserved_balance(from) >= number,
                 Error::<T>::InsufficientBalance
             );
-            T::Currency::unreserve(&from, number);
+            T::Currency::unreserve(from, number);
             Ok(number)
         } else {
             let mut actual_number = ReserveOf::<T>::try_mutate(
@@ -743,7 +744,7 @@ impl<T: Config> Pallet<T> {
 
     fn inner_free_balance_of(currency_id: T::CurrencyId, who: &T::AccountId) -> BalanceOf<T> {
         if currency_id == T::NativeCurrencyId::get() {
-            T::Currency::free_balance(&who)
+            T::Currency::free_balance(who)
         } else {
             FreeBalanceOf::<T>::get(&who, currency_id).unwrap_or_else(Zero::zero)
         }
@@ -768,7 +769,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
     }
 
     fn balance(currency_id: Self::CurrencyId, account: &T::AccountId) -> Self::Balance {
-        Self::inner_free_balance_of(currency_id, &account)
+        Self::inner_free_balance_of(currency_id, account)
     }
 
     fn transfer(
@@ -777,7 +778,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         to: &T::AccountId,
         number: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        Self::inner_transfer_from(currency_id, &from, &to, number)
+        Self::inner_transfer_from(currency_id, from, to, number)
     }
 
     fn mint(
@@ -785,7 +786,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         to: &T::AccountId,
         number: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        Self::inner_mint_to(currency_id, &to, number)
+        Self::inner_mint_to(currency_id, to, number)
     }
 
     fn burn(
@@ -793,7 +794,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         from: &T::AccountId,
         number: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        Self::inner_burn_from(currency_id, &from, number)
+        Self::inner_burn_from(currency_id, from, number)
     }
 
     fn reserve(
@@ -801,7 +802,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         who: &T::AccountId,
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        Self::inner_reserve(currency_id, &who, value)
+        Self::inner_reserve(currency_id, who, value)
     }
 
     fn unreserve(
@@ -809,7 +810,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         who: &T::AccountId,
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        Self::inner_unreserve(currency_id, &who, value)
+        Self::inner_unreserve(currency_id, who, value)
     }
 
     fn slash_reserved(
@@ -817,7 +818,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         who: &T::AccountId,
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
-        Self::inner_slash_reserved(currency_id, &who, value)
+        Self::inner_slash_reserved(currency_id, who, value)
     }
 
     fn reserved_balance(currency_id: Self::CurrencyId, who: &T::AccountId) -> Self::Balance {
@@ -830,7 +831,7 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
         let module_account = Self::module_account();
-        Self::inner_transfer_from(currency_id, &from, &module_account, value)
+        Self::inner_transfer_from(currency_id, from, &module_account, value)
     }
 
     fn mint_donate(
@@ -855,6 +856,6 @@ impl<T: Config> Tokens<T::AccountId> for Pallet<T> {
         value: Self::Balance,
     ) -> Result<Self::Balance, DispatchError> {
         let module_account = Self::module_account();
-        Self::inner_transfer_from(currency_id, &module_account, &to, value)
+        Self::inner_transfer_from(currency_id, &module_account, to, value)
     }
 }

@@ -176,7 +176,7 @@ impl<T: Config> Pallet<T> {
         who: &T::AccountId,
         number: BalanceOf<T>,
     ) -> Result<BalanceOf<T>, DispatchError> {
-        <TokensOf<T> as Tokens<T::AccountId>>::appropriation(currency_id, &who, number)
+        <TokensOf<T> as Tokens<T::AccountId>>::appropriation(currency_id, who, number)
     }
 
     pub(crate) fn new_asset(
@@ -207,7 +207,7 @@ impl<T: Config> Pallet<T> {
         );
         T::Pool::init_proposal(
             proposal_id,
-            &who,
+            who,
             ProposalStatus::OriginalPrediction,
             T::Time::now(),
             close_time,
@@ -225,7 +225,7 @@ impl<T: Config> Pallet<T> {
         optional: [Vec<u8>; 2],
     ) -> Result<ProposalIdOf<T>, DispatchError> {
         ProposalCurrencyId::<T>::insert(proposal_id, currency_id);
-        <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, who, number)?;
         let decimals = <TokensOf<T> as Tokens<T::AccountId>>::decimals(currency_id)?;
         let yes_symbol = runtime_format!("{:?}-YES", proposal_id);
         let asset_id_1 = Self::new_asset(optional[0].clone(), yes_symbol, decimals)?;
@@ -243,7 +243,7 @@ impl<T: Config> Pallet<T> {
         ProposalTotalOptionalMarket::<T>::insert(proposal_id, (number, number));
 
         ProposalLiquidateCurrencyId::<T>::insert(proposal_id, asset_id_lp);
-        <TokensOf<T> as Tokens<T::AccountId>>::mint(asset_id_lp, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::mint(asset_id_lp, who, number)?;
 
         PoolPairs::<T>::insert(proposal_id, (asset_id_1, asset_id_2));
         ProposalAccountInfo::<T>::insert(proposal_id, who.clone(), number);
@@ -303,10 +303,10 @@ impl<T: Config> Pallet<T> {
         liquidate_currency_id: CurrencyIdOf<T>,
         number: BalanceOf<T>,
     ) -> Result<(), DispatchError> {
-        <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, who, number)?;
         <TokensOf<T> as Tokens<T::AccountId>>::mint_donate(asset_id_1, number)?;
         <TokensOf<T> as Tokens<T::AccountId>>::mint_donate(asset_id_2, number)?;
-        <TokensOf<T> as Tokens<T::AccountId>>::mint(liquidate_currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::mint(liquidate_currency_id, who, number)?;
         proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
             let new_o1 = o1.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?;
             let new_o2 = o2.checked_add(&number).ok_or(Error::<T>::BalanceOverflow)?;
@@ -319,7 +319,7 @@ impl<T: Config> Pallet<T> {
                 .checked_add(&number)
                 .ok_or(Error::<T>::BalanceOverflow)?
         )?;
-        Self::total_and_account_add(proposal_id, &who, number)
+        Self::total_and_account_add(proposal_id, who, number)
     }
 
     pub(crate) fn inner_remove_liquidity(
@@ -333,7 +333,7 @@ impl<T: Config> Pallet<T> {
         finally_o1: BalanceOf<T>,
         finally_o2: BalanceOf<T>,
     ) -> Result<BalanceOf<T>, DispatchError> {
-        <TokensOf<T> as Tokens<T::AccountId>>::burn(liquidate_currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::burn(liquidate_currency_id, who, number)?;
         proposal_total_market_liquid_try_mutate!(
             proposal_id,
             old_value,
@@ -342,7 +342,7 @@ impl<T: Config> Pallet<T> {
         let total_liquid =
             ProposalFinallyMarketLiquid::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
         let fee = Self::get_fee_of_liquid(proposal_id, number, total_liquid)?;
-        let creater_fee = Self::get_fee_of_creator(&who, proposal_id)?;
+        let creater_fee = Self::get_fee_of_creator(who, proposal_id)?;
         let fee = fee
             .checked_add(&creater_fee)
             .ok_or(Error::<T>::BalanceOverflow)?;
@@ -372,13 +372,13 @@ impl<T: Config> Pallet<T> {
         let min = cmp::min(o1, o2);
         <TokensOf<T> as Tokens<T::AccountId>>::burn_donate(asset_id_1, min)?;
         <TokensOf<T> as Tokens<T::AccountId>>::burn_donate(asset_id_2, min)?;
-        Self::total_and_account_sub(proposal_id, &who, min)?;
+        Self::total_and_account_sub(proposal_id, who, min)?;
         let actual_amount = min.checked_add(&fee).ok_or(Error::<T>::BalanceOverflow)?;
-        Self::appropriation(currency_id, &who, actual_amount)?;
+        Self::appropriation(currency_id, who, actual_amount)?;
         let yes_amount = o1.checked_sub(&min).unwrap_or_else(Zero::zero);
-        Self::appropriation(asset_id_1, &who, yes_amount)?;
+        Self::appropriation(asset_id_1, who, yes_amount)?;
         let no_amount = o2.checked_sub(&min).unwrap_or_else(Zero::zero);
-        Self::appropriation(asset_id_2, &who, no_amount)
+        Self::appropriation(asset_id_2, who, no_amount)
     }
 
     pub(crate) fn inner_buy(
@@ -390,8 +390,8 @@ impl<T: Config> Pallet<T> {
         other_currency: (usize, CurrencyIdOf<T>),
     ) -> Result<BalanceOf<T>, DispatchError> {
         let (actual_number, fee) = Self::get_fee_from_total(proposal_id, number)?;
-        <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, &who, number)?;
-        <TokensOf<T> as Tokens<T::AccountId>>::mint(optional_currency_id, &who, actual_number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::donate(currency_id, who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::mint(optional_currency_id, who, actual_number)?;
         <TokensOf<T> as Tokens<T::AccountId>>::mint_donate(other_currency.1, actual_number)?;
         let (d1, d2) = proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
             let old_pair = [o1, o2];
@@ -399,7 +399,7 @@ impl<T: Config> Pallet<T> {
             (new_pair[0], new_pair[1])
         })?;
         let diff = [d1, d2][1 - other_currency.0];
-        Self::total_and_account_add(proposal_id, &who, actual_number)?;
+        Self::total_and_account_add(proposal_id, who, actual_number)?;
         proposal_total_market_fee_try_mutate!(
             proposal_id,
             old_value,
@@ -407,7 +407,7 @@ impl<T: Config> Pallet<T> {
                 .checked_add(&fee)
                 .ok_or(Error::<T>::BalanceOverflow)?
         )?;
-        Self::appropriation(optional_currency_id, &who, diff)?;
+        Self::appropriation(optional_currency_id, who, diff)?;
         ProposalTotalVolume::<T>::try_mutate(
             proposal_id,
             |optional| -> Result<(), DispatchError> {
@@ -430,7 +430,7 @@ impl<T: Config> Pallet<T> {
         number: BalanceOf<T>,
         other_currency: (usize, CurrencyIdOf<T>),
     ) -> Result<BalanceOf<T>, DispatchError> {
-        <TokensOf<T> as Tokens<T::AccountId>>::donate(optional_currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::donate(optional_currency_id, who, number)?;
         let (d1, d2) = proposal_total_optional_market_try_mutate!(proposal_id, o1, o2, {
             let old_pair = [o1, o2];
             let other_currency = Self::get_other_optional_id(proposal_id, optional_currency_id)?;
@@ -469,16 +469,16 @@ impl<T: Config> Pallet<T> {
                 .checked_add(&fee)
                 .ok_or(Error::<T>::BalanceOverflow)?
         )?;
-        Self::total_and_account_sub(proposal_id, &who, min)?;
-        Self::appropriation(currency_id, &who, actual_number)?;
+        Self::total_and_account_sub(proposal_id, who, min)?;
+        Self::appropriation(currency_id, who, actual_number)?;
         let last = last_select_currency
             .checked_sub(&min)
             .unwrap_or_else(Zero::zero);
-        Self::appropriation(optional_currency_id, &who, last)?;
+        Self::appropriation(optional_currency_id, who, last)?;
         let acquired = acquired_currency
             .checked_sub(&min)
             .unwrap_or_else(Zero::zero);
-        Self::appropriation(other_currency.1, &who, acquired)?;
+        Self::appropriation(other_currency.1, who, acquired)?;
         Ok(actual_number)
     }
 
@@ -497,7 +497,7 @@ impl<T: Config> Pallet<T> {
                 old_amount,
                 old_amount.checked_sub(&number).unwrap_or_else(Zero::zero)
             )?;
-            <TokensOf<T> as Tokens<T::AccountId>>::burn(result_id, &who, number)?;
+            <TokensOf<T> as Tokens<T::AccountId>>::burn(result_id, who, number)?;
             let (number, reward, dividends) = Self::get_withdrawal_fee(number);
             ProposalTotalAutonomyReward::<T>::try_mutate(
                 proposal_id,
@@ -517,9 +517,9 @@ impl<T: Config> Pallet<T> {
             )?;
             let dividends_account = T::Ruler::get_account(RulerModule::PlatformDividend)?;
             Self::appropriation(currency_id, &dividends_account, dividends)?;
-            Self::appropriation(currency_id, &who, number)
+            Self::appropriation(currency_id, who, number)
         } else {
-            <TokensOf<T> as Tokens<T::AccountId>>::burn(optional_currency_id, &who, number)
+            <TokensOf<T> as Tokens<T::AccountId>>::burn(optional_currency_id, who, number)
         }
     }
 
@@ -553,6 +553,6 @@ impl<T: Config> Pallet<T> {
                 Ok(number)
             },
         )?;
-        Self::appropriation(currency_id, &who, number)
+        Self::appropriation(currency_id, who, number)
     }
 }

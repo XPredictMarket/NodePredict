@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::unused_unit)]
 
 pub use pallet::*;
 
@@ -10,7 +11,7 @@ mod tests;
 
 use frame_support::{dispatch::DispatchError, ensure, traits::Get};
 use sp_runtime::traits::{AccountIdConversion, CheckedAdd, CheckedDiv, CheckedSub, Zero};
-use sp_std::{mem, vec::Vec};
+use sp_std::mem;
 use xpmrl_traits::{couple::LiquidityCouple, tokens::Tokens};
 use xpmrl_utils::storage_try_mutate;
 
@@ -283,13 +284,11 @@ pub mod pallet {
                     if mine_info.from > now || mine_info.from == Zero::zero() {
                         *option_mine_info = Some(new_mine_info);
                         Ok(())
+                    } else if new_mine_info.perblock == Zero::zero() {
+                        *option_mine_info = None;
+                        Ok(())
                     } else {
-                        if new_mine_info.perblock == Zero::zero() {
-                            *option_mine_info = None;
-                            Ok(())
-                        } else {
-                            Err(Error::<T>::ProposalIsMined)?
-                        }
+                        Err(Error::<T>::ProposalIsMined.into())
                     }
                 },
             )?;
@@ -373,7 +372,7 @@ impl<T: Config> Pallet<T> {
                 None => number,
             }
         )?;
-        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::reserve(currency_id, who, number)?;
         Ok((now, number))
     }
 
@@ -413,12 +412,12 @@ impl<T: Config> Pallet<T> {
                 None => Zero::zero(),
             }
         )?;
-        <TokensOf<T> as Tokens<T::AccountId>>::unreserve(currency_id, &who, number)?;
+        <TokensOf<T> as Tokens<T::AccountId>>::unreserve(currency_id, who, number)?;
         Ok((now, number))
     }
 
     fn get_range(
-        checkpoints: &Vec<Point<T::BlockNumber, BalanceOf<T>>>,
+        checkpoints: &[Point<T::BlockNumber, BalanceOf<T>>],
         i: usize,
         now: T::BlockNumber,
         start: T::BlockNumber,
@@ -453,8 +452,8 @@ impl<T: Config> Pallet<T> {
     }
 
     fn get_sum(
-        account_checkpoints: &Vec<Point<T::BlockNumber, BalanceOf<T>>>,
-        total_checkpoints: &Vec<Point<T::BlockNumber, BalanceOf<T>>>,
+        account_checkpoints: &[Point<T::BlockNumber, BalanceOf<T>>],
+        total_checkpoints: &[Point<T::BlockNumber, BalanceOf<T>>],
         perblock: BalanceOf<T>,
         now: T::BlockNumber,
         start: T::BlockNumber,
@@ -466,7 +465,7 @@ impl<T: Config> Pallet<T> {
         let mut sum: BalanceOf<T> = Zero::zero();
 
         for i in 0..account_checkpoint_len {
-            let account_range = Self::get_range(&account_checkpoints, i, now, start, end);
+            let account_range = Self::get_range(account_checkpoints, i, now, start, end);
             if account_range[1].from <= start {
                 continue;
             }
@@ -478,7 +477,7 @@ impl<T: Config> Pallet<T> {
             let upper: BalanceOf<T> = T::ScaleUpper::get();
 
             for j in 0..total_checkpoint_len {
-                let total_range = Self::get_range(&total_checkpoints, j, now, start, end);
+                let total_range = Self::get_range(total_checkpoints, j, now, start, end);
                 let total = total_range[0].number;
                 if total_range[1].from <= account_range[0].from {
                     continue;
@@ -562,7 +561,7 @@ impl<T: Config> Pallet<T> {
                 Ok(old)
             },
         )?;
-        sum = T::Tokens::transfer(currency_id, &module_account, &who, sum)?;
+        sum = T::Tokens::transfer(currency_id, &module_account, who, sum)?;
         Ok((now, sum))
     }
 }

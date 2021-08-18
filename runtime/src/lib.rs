@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
+#![allow(clippy::from_over_into)]
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -44,11 +45,8 @@ pub use sp_runtime::{Perbill, Permill};
 pub use autonomy;
 pub use couple;
 pub use couple::pallet::Proposal;
-use cross;
-use mining;
 pub use proposals;
 use proposals_info_runtime_api::types::{PersonalProposalInfo, ProposalInfo};
-use ruler;
 pub use tokens;
 use traits::{system::ProposalSystem, ProposalStatus};
 
@@ -106,7 +104,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("node-predict"),
     impl_name: create_runtime_str!("node-predict"),
     authoring_version: 1,
-    spec_version: 3,
+    spec_version: 1,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,

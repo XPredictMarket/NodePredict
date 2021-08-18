@@ -1,4 +1,5 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
+#![allow(clippy::type_complexity)]
 
 use predict_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{ExecutorProvider, RemoteBackend};
@@ -58,7 +59,7 @@ pub fn new_partial(
     let inherent_data_providers = sp_inherents::InherentDataProviders::new();
 
     let (client, backend, keystore_container, task_manager) =
-        sc_service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
+        sc_service::new_full_parts::<Block, RuntimeApi, Executor>(config)?;
     let client = Arc::new(client);
 
     let select_chain = sc_consensus::LongestChain::new(backend.clone());

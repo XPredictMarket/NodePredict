@@ -24,6 +24,8 @@
 //!
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::unused_unit)]
 
 pub use pallet::*;
 
@@ -651,7 +653,7 @@ impl<T: Config> LiquidityCouple<T> for Pallet<T> {
     ) -> Result<(CurrencyIdOf<T>, CurrencyIdOf<T>), DispatchError> {
         match PoolPairs::<T>::get(proposal_id) {
             Some(pair) => Ok(pair),
-            None => Err(Error::<T>::ProposalIdNotExist)?,
+            None => Err(Error::<T>::ProposalIdNotExist.into()),
         }
     }
 
@@ -661,14 +663,14 @@ impl<T: Config> LiquidityCouple<T> for Pallet<T> {
     ) -> Result<(), DispatchError> {
         match Self::set_result(RawOrigin::Root.into(), proposal_id, result) {
             Ok(_) => Ok(()),
-            Err(e) => Err(e.error)?,
+            Err(e) => Err(e.error),
         }
     }
 
     fn get_proposal_result(proposal_id: ProposalIdOf<T>) -> Result<CurrencyIdOf<T>, DispatchError> {
         match ProposalResult::<T>::get(proposal_id) {
             Some(result) => Ok(result),
-            None => Err(Error::<T>::ProposalNotResult)?,
+            None => Err(Error::<T>::ProposalNotResult.into()),
         }
     }
 
@@ -677,7 +679,7 @@ impl<T: Config> LiquidityCouple<T> for Pallet<T> {
     ) -> Result<CurrencyIdOf<T>, DispatchError> {
         match ProposalLiquidateCurrencyId::<T>::get(proposal_id) {
             Some(id) => Ok(id),
-            None => Err(Error::<T>::ProposalIdNotExist)?,
+            None => Err(Error::<T>::ProposalIdNotExist.into()),
         }
     }
 }
