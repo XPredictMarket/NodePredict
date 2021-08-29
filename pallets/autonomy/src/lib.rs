@@ -71,6 +71,7 @@ pub mod crypto {
 
     app_crypto!(sr25519, KEY_TYPE);
 
+    /// A custom type of authentication ID is used to verify that the payload is correctly signed.
     pub struct OcwAuthId;
 
     // implemented for runtime
@@ -126,6 +127,7 @@ pub mod pallet {
         ///
         /// The proposal option is a token, so here only the id of the corresponding token needs to be uploaded
         pub result: ResultId,
+        /// Account for uploading results
         pub public: Public,
     }
 
@@ -150,7 +152,9 @@ pub mod pallet {
         type Call: From<Call<Self>>;
         /// The identifier type for an offchain worker.
         type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
+        /// A trait used to obtain public information about the proposal
         type Pool: LiquidityPool<Self>;
+        /// A trait that operates on a proposal with two options
         type CouplePool: LiquidityCouple<Self>;
 
         /// The asset id of the governance token
@@ -261,10 +265,12 @@ pub mod pallet {
     pub type ProposalReportTime<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>, OptionQuery>;
 
+    /// The publicity cycle, during the publicity cycle, ordinary accounts can initiate a report.
     #[pallet::storage]
     #[pallet::getter(fn publicity_interval)]
     pub type PublicityInterval<T: Config> = StorageValue<_, MomentOf<T>, OptionQuery>;
 
+    /// Reporting cycle, ordinary accounts can secondarily report during the reporting cycle.
     #[pallet::storage]
     #[pallet::getter(fn report_interval)]
     pub type ReportInterval<T: Config> = StorageValue<_, MomentOf<T>, OptionQuery>;
@@ -315,8 +321,11 @@ pub mod pallet {
         SetMinimalNumber(BalanceOf<T>),
         /// Set the publicity interval
         SetPublicityInterval(MomentOf<T>),
+        /// Proposal result is reported
         Report(T::AccountId, ProposalIdOf<T>, T::AccountId, BalanceOf<T>),
+        /// Proposal report is seconded
         SecondedReport(T::AccountId, ProposalIdOf<T>, T::AccountId, bool),
+        /// Take out the tokens pledged by the report
         TakeOut(T::AccountId, ProposalIdOf<T>, T::AccountId, BalanceOf<T>),
     }
 
@@ -346,8 +355,11 @@ pub mod pallet {
         AccountNotTagged,
         /// This node has already been reported
         CurrentProposalReported,
+        /// No corresponding report information was found
         ReportHashNotFound,
+        /// Attitude should be the same
         AttitudeNeedSame,
+        /// The number of report votes is enough, and there is no need to continue to stake
         ProposalNotNeedSecond,
     }
 
@@ -617,7 +629,7 @@ impl<T: Config> GenesisConfig<T> {
 }
 
 impl<T: Config> Pallet<T> {
-    pub fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
+    fn begin_block(_: T::BlockNumber) -> Result<Weight, DispatchError> {
         let max_id = T::Pool::max_proposal_id();
         let mut index: ProposalIdOf<T> = Zero::zero();
         let now = <TimeOf<T> as Time>::now();

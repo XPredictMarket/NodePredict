@@ -15,7 +15,7 @@ run-dev:
 	cargo run --release -- --dev
 
 .PHONY: run-dev-tmp
-run-tmp:
+run-dev-tmp:
 	cargo run --release -- --dev --tmp
 
 .PHONY: purge-dev

@@ -12,6 +12,5 @@ RUN \
 
 FROM ubuntu:20.04
 COPY --from=builder /build/target/release/node-predict /usr/bin/
-COPY --from=builder /build/target/release/node-predict-dev /usr/bin/
-CMD ["/usr/bin/node-predict-dev", "--dev", "--tmp"]
+CMD ["/usr/bin/node-predict", "--dev", "--tmp"]
 
