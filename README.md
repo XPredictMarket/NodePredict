@@ -80,8 +80,8 @@ If you want to use a local test network (private network), you need to set up at
 First, start the first node:
 
 ```bash
-cargo run --bin node-predict -- \
-    --dev \
+cargo run -- \
+    --chain test \
     --validator \
     --base-path /tmp/validator01 \
     --name validator01 \
@@ -95,8 +95,8 @@ Here you must take note of the node identity on program output log, such as: `12
 Then run the second validator node and join the first validator node. This can be done by specifying the `--bootnodes` parameter, similar to the first validator node.
 
 ```bash
-cargo run --bin node-predict -- \
-    --dev \
+cargo run -- \
+    --chain test \
     --validator \
     --base-path /tmp/validator02 \
     --name validator02 \
@@ -129,8 +129,8 @@ It should be noted that substrate nodes require a restart after inserting a `GRA
 After completing these steps, the multi-node local test network has been set up, and then other nodes (full node or light node) can be connected to the network through the following command:
 
 ```bash
-cargo run --bin node-predict -- \
-    --dev \
+cargo run -- \
+    --chain test \
     --base-path /tmp/node01 \
     --name node01 \
     --ws-external \

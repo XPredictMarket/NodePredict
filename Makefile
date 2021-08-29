@@ -10,21 +10,17 @@ check:
 test:
 	SKIP_WASM_BUILD=1 cargo test --release --all
 
-.PHONY: run-tmp
-run-tmp:
-	cargo run --release --bin node-predict -- --dev --tmp
-
 .PHONY: run-dev
 run-dev:
-	cargo run --release --bin node-predict-dev -- --dev
+	cargo run --release -- --dev
+
+.PHONY: run-dev-tmp
+run-tmp:
+	cargo run --release -- --dev --tmp
 
 .PHONY: purge-dev
 purge-dev:
-	cargo run --release --bin node-predict-dev -- purge-chain --dev
-
-.PHONY: run-dev-tmp
-run-dev-tmp:
-	cargo run --release --bin node-predict-dev -- --dev --tmp
+	cargo run --release -- purge-chain --dev
 
 .PHONY: build
 build:
