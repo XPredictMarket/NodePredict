@@ -378,9 +378,9 @@ fn test_withdrawal_reward() {
                 ProposalState::WaitingForResults
             )
         );
-        assert_eq!(AutonomyWrapper::set_temporary_results(id, &4, 3), ());
-        assert_eq!(AutonomyWrapper::set_temporary_results(id, &5, 3), ());
-        assert_eq!(AutonomyWrapper::set_temporary_results(id, &6, 4), ());
+        AutonomyWrapper::set_temporary_results(id, &4, 3);
+        AutonomyWrapper::set_temporary_results(id, &5, 3);
+        AutonomyWrapper::set_temporary_results(id, &6, 4);
         assert_noop!(
             CoupleModule::withdrawal_reward(Origin::signed(4), id),
             Error::<Test>::ProposalNotResult

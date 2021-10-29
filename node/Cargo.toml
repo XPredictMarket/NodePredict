@@ -59,6 +59,4 @@ substrate-build-script-utils = { version = "3.0.0" }
 
 [features]
 default = []
-runtime-benchmarks = [
-	"predict-runtime/runtime-benchmarks",
-]
+runtime-benchmarks = ["predict-runtime/runtime-benchmarks"]

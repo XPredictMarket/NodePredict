@@ -1,3 +1,5 @@
+#![allow(clippy::from_over_into)]
+
 use crate as tokens;
 use frame_support::{parameter_types};
 use frame_system as system;

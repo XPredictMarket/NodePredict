@@ -1,3 +1,5 @@
+#![allow(clippy::from_over_into)]
+
 use crate::{self as proposals, Error};
 use frame_support::{
     dispatch::DispatchError,
@@ -167,7 +169,7 @@ impl LiquidityCouple<Test> for Couple {
             |wrapper| -> Result<(CurrencyIdOf<Test>, CurrencyIdOf<Test>), DispatchError> {
                 match wrapper.borrow().proposal_pair.get(&proposal_id) {
                     Some(val) => Ok(*val),
-                    None => Err(Error::<Test>::ProposalIdNotExist)?,
+                    None => Err(Error::<Test>::ProposalIdNotExist.into()),
                 }
             },
         )
@@ -196,7 +198,7 @@ impl LiquidityCouple<Test> for Couple {
         COUPLE_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
             match wrapper.borrow().proposal_result.get(&proposal_id) {
                 Some(result) => Ok(*result),
-                None => Err("ProposalNotResult")?,
+                None => Err("ProposalNotResult".into()),
             }
         })
     }
@@ -207,7 +209,7 @@ impl LiquidityCouple<Test> for Couple {
         COUPLE_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
             match wrapper.borrow().proposal_lp.get(&proposal_id) {
                 Some(val) => Ok(*val),
-                None => Err(Error::<Test>::ProposalIdNotExist)?,
+                None => Err(Error::<Test>::ProposalIdNotExist.into()),
             }
         })
     }

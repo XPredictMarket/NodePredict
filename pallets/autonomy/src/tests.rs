@@ -119,7 +119,7 @@ fn test_upload_result() {
         let mut payload = Payload {
             proposal_id: 0,
             result: 3,
-            public: account.clone(),
+            public: *account,
         };
         assert_ok!(Proposals::new_couple_proposal(*account, 1));
         assert_noop!(
@@ -157,7 +157,7 @@ fn test_upload_result() {
         assert_eq!(AutonomyModule::statistical_results(0, 4), Some(1));
 
         assert_noop!(
-            AutonomyModule::upload_result(Origin::none(), payload.clone(), Default::default()),
+            AutonomyModule::upload_result(Origin::none(), payload, Default::default()),
             Error::<Test>::AccountHasAlreadyUploaded
         );
     })
@@ -178,11 +178,11 @@ fn test_report() {
         let payload = Payload {
             proposal_id: 0,
             result: 4,
-            public: account.clone(),
+            public: *account,
         };
         assert_ok!(AutonomyModule::upload_result(
             Origin::none(),
-            payload.clone(),
+            payload,
             Default::default()
         ));
         assert_noop!(
@@ -235,11 +235,11 @@ fn test_seconded_report() {
         let payload = Payload {
             proposal_id: 0,
             result: 4,
-            public: account.clone(),
+            public: *account,
         };
         assert_ok!(AutonomyModule::upload_result(
             Origin::none(),
-            payload.clone(),
+            payload,
             Default::default()
         ));
         assert_ok!(<Proposals as LiquidityPool<Test>>::set_proposal_state(
@@ -288,7 +288,7 @@ fn test_auto_merged_result() {
             let payload = Payload {
                 proposal_id: 0,
                 result,
-                public: account.clone(),
+                public: *account,
             };
             assert_ok!(AutonomyModule::upload_result(
                 Origin::none(),

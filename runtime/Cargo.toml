@@ -10,7 +10,9 @@ repository = "https://github.com/XPredictMarket/NodePredict"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = [
+	"derive",
+] }
 
 pallet-aura = { version = "3.0.0", default-features = false }
 pallet-balances = { version = "3.0.0", default-features = false }
@@ -24,10 +26,10 @@ pallet-transaction-payment = { version = "3.0.0", default-features = false }
 frame-executive = { version = "3.0.0", default-features = false }
 serde = { version = "1.0.101", optional = true, features = ["derive"] }
 sp-api = { version = "3.0.0", default-features = false }
-sp-block-builder = { default-features = false, version = "3.0.0"}
+sp-block-builder = { default-features = false, version = "3.0.0" }
 sp-consensus-aura = { version = "0.9.0", default-features = false }
 sp-core = { version = "3.0.0", default-features = false }
-sp-inherents = { default-features = false, version = "3.0.0"}
+sp-inherents = { default-features = false, version = "3.0.0" }
 sp-offchain = { version = "3.0.0", default-features = false }
 sp-runtime = { version = "3.0.0", default-features = false }
 sp-session = { version = "3.0.0", default-features = false }

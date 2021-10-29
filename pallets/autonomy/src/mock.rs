@@ -1,3 +1,5 @@
+#![allow(clippy::from_over_into)]
+
 use crate::{self as autonomy, *};
 
 use frame_support::{
@@ -302,7 +304,7 @@ impl LiquidityPool<Test> for Proposals {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<ProposalStatus, DispatchError> {
             match wrapper.borrow().proposal_state.get(&proposal_id) {
                 Some(v) => Ok(*v),
-                None => Err("ProposalIdNotExist")?,
+                None => Err("ProposalIdNotExist".into()),
             }
         })
     }
@@ -324,7 +326,7 @@ impl LiquidityPool<Test> for Proposals {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<AccountId, DispatchError> {
             match wrapper.borrow().proposal_owner.get(&proposal_id) {
                 Some(v) => Ok(*v),
-                None => Err("ProposalIdNotExist")?,
+                None => Err("ProposalIdNotExist".into()),
             }
         })
     }
@@ -335,7 +337,7 @@ impl LiquidityPool<Test> for Proposals {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
             match wrapper.borrow().announcement_time.get(&proposal_id) {
                 Some(v) => Ok(*v),
-                None => Err("ProposalIdNotExist")?,
+                None => Err("ProposalIdNotExist".into()),
             }
         })
     }
@@ -349,7 +351,7 @@ impl LiquidityCouple<Test> for Proposals {
             |wrapper| -> Result<(CurrencyIdOf<Test>, CurrencyIdOf<Test>), DispatchError> {
                 match wrapper.borrow().proposal_pair.get(&proposal_id) {
                     Some(val) => Ok(*val),
-                    None => Err("ProposalIdNotExist")?,
+                    None => Err("ProposalIdNotExist".into()),
                 }
             },
         )
@@ -378,7 +380,7 @@ impl LiquidityCouple<Test> for Proposals {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
             match wrapper.borrow().proposal_lp.get(&proposal_id) {
                 Some(val) => Ok(*val),
-                None => Err("ProposalIdNotExist")?,
+                None => Err("ProposalIdNotExist".into()),
             }
         })
     }
@@ -389,7 +391,7 @@ impl LiquidityCouple<Test> for Proposals {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<CurrencyIdOf<Test>, DispatchError> {
             match wrapper.borrow().proposal_result.get(&proposal_id) {
                 Some(val) => Ok(*val),
-                None => Err("ProposalIdNotExist")?,
+                None => Err("ProposalIdNotExist".into()),
             }
         })
     }
@@ -430,7 +432,7 @@ where
     keystore.sr25519_generate_new(KEY_TYPE, None).unwrap();
 
     // get public key array from key store
-    let public_key_array = keystore.sr25519_public_keys(KEY_TYPE).clone();
+    let public_key_array = keystore.sr25519_public_keys(KEY_TYPE);
 
     let tokens_genesis = xpmrl_tokens::GenesisConfig::<Test> {
         tokens: vec![
@@ -442,7 +444,6 @@ where
             ("Bitcoin".as_bytes().to_vec(), "BTC".as_bytes().to_vec(), 8),
         ],
         balances: public_key_array
-            .clone()
             .iter()
             .map(|x| (*x, 100000u128))
             .collect(),

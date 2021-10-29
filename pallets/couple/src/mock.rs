@@ -1,3 +1,5 @@
+#![allow(clippy::from_over_into)]
+
 use crate::{self as couple, Error};
 use frame_support::{
     dispatch::DispatchError,
@@ -205,7 +207,7 @@ impl LiquidityPool<Test> for ProposalsWrapper {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<ProposalStatus, DispatchError> {
             match wrapper.borrow().proposal_state.get(&proposal_id) {
                 Some(v) => Ok(*v),
-                None => Err(Error::<Test>::ProposalIdNotExist)?,
+                None => Err(Error::<Test>::ProposalIdNotExist.into()),
             }
         })
     }
@@ -227,7 +229,7 @@ impl LiquidityPool<Test> for ProposalsWrapper {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<AccountId, DispatchError> {
             match wrapper.borrow().proposal_owner.get(&proposal_id) {
                 Some(v) => Ok(*v),
-                None => Err(Error::<Test>::ProposalIdNotExist)?,
+                None => Err(Error::<Test>::ProposalIdNotExist.into()),
             }
         })
     }
@@ -238,7 +240,7 @@ impl LiquidityPool<Test> for ProposalsWrapper {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
             match wrapper.borrow().announcement_time.get(&proposal_id) {
                 Some(v) => Ok(*v),
-                None => Err("ProposalIdNotExist")?,
+                None => Err("ProposalIdNotExist".into()),
             }
         })
     }
@@ -315,7 +317,7 @@ impl Autonomy<Test> for AutonomyWrapper {
                 .get(&proposal_id)
                 .unwrap()
                 .clone();
-            Ok(*(inner.get(&who).unwrap()))
+            Ok(*(inner.get(who).unwrap()))
         })
     }
 

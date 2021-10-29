@@ -8,15 +8,17 @@ repository = "https://github.com/XPredictMarket/NodePredict"
 description = "FRAME pallet template for defining custom runtime logic."
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = [
+    "derive",
+] }
 jsonrpc-core = { version = "15.1.0" }
 jsonrpc-core-client = { version = "15.1.0" }
 jsonrpc-derive = { version = "15.1.0" }
 serde = { version = "1.0.101", optional = true }
 sp-api = { version = '3.0.0', default-features = false }
-sp-blockchain = { version = '3.0.0', default-features = false}
-sp-rpc = { version = '3.0.0', default-features = false}
-sp-runtime = { version = '3.0.0', default-features = false}
+sp-blockchain = { version = '3.0.0', default-features = false }
+sp-rpc = { version = '3.0.0', default-features = false }
+sp-runtime = { version = '3.0.0', default-features = false }
 
 xpmrl-traits = { version = "0.1.0", default-features = false, path = "../../traits" }
-proposals-info-runtime-api  = { version = "0.1.0", path = "../runtime-api", default-features = false }
+proposals-info-runtime-api = { version = "0.1.0", path = "../runtime-api", default-features = false }

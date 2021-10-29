@@ -1,3 +1,5 @@
+#![allow(clippy::from_over_into)]
+
 use crate as ruler;
 
 use frame_support::{construct_runtime, parameter_types};
