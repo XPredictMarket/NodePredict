@@ -13,6 +13,7 @@ fn test_new_asset() {
             name: "Tether USD".as_bytes().to_vec(),
             symbol: "USD".as_bytes().to_vec(),
             decimals: 6,
+            total_supply: 0,
         };
 
         // new a asset
@@ -49,6 +50,7 @@ fn test_mint() {
             name: "Tether USD".as_bytes().to_vec(),
             symbol: "USD".as_bytes().to_vec(),
             decimals: 6,
+            total_supply: 0,
         };
         assert_ok!(TokensModule::new_asset(
             Origin::root(),
@@ -61,7 +63,7 @@ fn test_mint() {
         assert!(System::events()
             .iter()
             .any(|record| record.event == mint_event));
-        assert_eq!(TokensModule::total_supply(1), Some(100));
+        assert_eq!(TokensModule::currencies(1).unwrap().total_supply, 100);
         assert_eq!(TokensModule::free_balance_of(1, 1), Some(100));
 
         assert_ok!(TokensModule::mint(Origin::root(), 1, 2, 100));
@@ -69,7 +71,7 @@ fn test_mint() {
         assert!(System::events()
             .iter()
             .any(|record| record.event == mint_event));
-        assert_eq!(TokensModule::total_supply(1), Some(200));
+        assert_eq!(TokensModule::currencies(1).unwrap().total_supply, 200);
         assert_eq!(TokensModule::free_balance_of(2, 1), Some(100));
     });
 }
@@ -86,6 +88,7 @@ fn test_burn() {
             name: "Tether USD".as_bytes().to_vec(),
             symbol: "USD".as_bytes().to_vec(),
             decimals: 6,
+            total_supply: 0,
         };
         assert_ok!(TokensModule::new_asset(
             Origin::root(),
@@ -93,17 +96,13 @@ fn test_burn() {
             asset.symbol.clone(),
             asset.decimals
         ));
-        assert_noop!(
-            TokensModule::burn(Origin::signed(1), 1, 100),
-            Error::<Test>::CurrencyIdNotExist
-        );
         assert_ok!(TokensModule::mint(Origin::root(), 1, 1, 100));
         assert_ok!(TokensModule::burn(Origin::signed(1), 1, 100));
         let burn_event = Event::tokens(crate::Event::Burn(1, 1, 100));
         assert!(System::events()
             .iter()
             .any(|record| record.event == burn_event));
-        assert_eq!(TokensModule::total_supply(1), Some(0));
+        assert_eq!(TokensModule::currencies(1).unwrap().total_supply, 0);
         assert_eq!(TokensModule::free_balance_of(1, 1), Some(0));
 
         assert_ok!(TokensModule::burn(Origin::signed(1), 1, 100));
@@ -127,6 +126,7 @@ fn test_transfer() {
             name: "Tether USD".as_bytes().to_vec(),
             symbol: "USD".as_bytes().to_vec(),
             decimals: 6,
+            total_supply: 0,
         };
         assert_ok!(TokensModule::new_asset(
             Origin::root(),
@@ -151,7 +151,7 @@ fn test_transfer() {
 
         assert_eq!(TokensModule::inner_free_balance_of(1, &1), 50);
         assert_eq!(TokensModule::inner_free_balance_of(1, &2), 50);
-        assert_eq!(TokensModule::total_supply(1), Some(100));
+        assert_eq!(TokensModule::currencies(1).unwrap().total_supply, 100);
     });
 }
 
@@ -162,6 +162,7 @@ fn test_approve() {
             name: "Tether USD".as_bytes().to_vec(),
             symbol: "USD".as_bytes().to_vec(),
             decimals: 6,
+            total_supply: 0,
         };
         assert_ok!(TokensModule::new_asset(
             Origin::root(),
@@ -194,6 +195,7 @@ fn test_burn_from() {
             name: "Tether USD".as_bytes().to_vec(),
             symbol: "USD".as_bytes().to_vec(),
             decimals: 6,
+            total_supply: 0,
         };
         assert_ok!(TokensModule::new_asset(
             Origin::root(),
@@ -217,7 +219,7 @@ fn test_burn_from() {
         assert!(System::events()
             .iter()
             .any(|record| record.event == approval_event));
-        assert_eq!(TokensModule::total_supply(1), Some(100));
+        assert_eq!(TokensModule::currencies(1).unwrap().total_supply, 100);
         assert_eq!(TokensModule::free_balance_of(1, 1), Some(100));
     });
 }
@@ -229,6 +231,7 @@ fn test_transfer_from() {
             name: "Tether USD".as_bytes().to_vec(),
             symbol: "USD".as_bytes().to_vec(),
             decimals: 6,
+            total_supply:  0,
         };
         assert_ok!(TokensModule::new_asset(
             Origin::root(),
