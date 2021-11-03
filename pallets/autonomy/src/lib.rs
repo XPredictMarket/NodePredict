@@ -556,7 +556,7 @@ pub mod pallet {
             Self::deposit_event(Event::<T>::Tagging(account));
             Ok(().into())
         }
-
+        //111
         /// Delete the label, in some cases it is necessary to cancel the label of some accounts
         ///
         /// The dispatch origin for this call is `root`.
