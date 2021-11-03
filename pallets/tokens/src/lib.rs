@@ -52,16 +52,18 @@ pub mod pallet {
     use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, vec::Vec};
     use xpmrl_utils::with_transaction_result;
 
+    pub(crate) type BalanceOf<T> =
+    <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
     /// Basic attributes of the tokens
     #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, Default)]
-    pub struct PRC20 {
+    pub struct PRC20 <T: Default>{
         pub name: Vec<u8>,
         pub symbol: Vec<u8>,
         pub decimals: u8,
+        pub total_supply: T,
     }
 
-    pub(crate) type BalanceOf<T> =
-        <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
     pub(crate) type CurrencyIdOf<T> = <T as Config>::CurrencyId;
 
     #[pallet::config]
@@ -132,16 +134,16 @@ pub mod pallet {
     }
 
     /// store the basic attributes of all tokens.
-    #[pallet::storage]
+    #[pallet::storage ]
     #[pallet::getter(fn currencies)]
     pub type Currencies<T: Config> =
-        StorageMap<_, Blake2_128Concat, T::CurrencyId, PRC20, OptionQuery>;
+        StorageMap<_, Blake2_128Concat, T::CurrencyId, PRC20<BalanceOf<T>>, OptionQuery>;
 
     /// Total amount of tokens
-    #[pallet::storage]
-    #[pallet::getter(fn total_supply)]
-    pub type TotalSupply<T: Config> =
-        StorageMap<_, Blake2_128Concat, T::CurrencyId, BalanceOf<T>, OptionQuery>;
+    // #[pallet::storage]
+    // #[pallet::getter(fn total_supply)]
+    // pub type TotalSupply<T: Config> =
+    //     StorageMap<_, Blake2_128Concat, T::CurrencyId, BalanceOf<T>, OptionQuery>;
 
     /// Available balance of the account
     #[pallet::storage]
@@ -447,6 +449,7 @@ impl<T: Config> Pallet<T> {
             name,
             symbol,
             decimals,
+            total_supply: Zero::zero(),
         };
         Currencies::<T>::insert(currency_id, asset);
         Ok(currency_id)
@@ -480,14 +483,16 @@ impl<T: Config> Pallet<T> {
                         .unwrap_or_else(Zero::zero))
                 },
             )?;
-            let _ = TotalSupply::<T>::try_mutate(
+            let _ = Currencies::<T>::try_mutate(
                 currency_id,
-                |total_supply| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_total = total_supply.unwrap_or_else(Zero::zero);
+                |prc20| -> Result<BalanceOf<T>, DispatchError> {
+                    let mut new_prc20 = prc20.clone().ok_or(Error::<T>::CurrencyIdNotExist)?;
+                    let old_total = new_prc20.total_supply;
                     let new_total = old_total
                         .checked_add(&actual_number)
                         .ok_or(Error::<T>::BalanceOverflow)?;
-                    *total_supply = Some(new_total);
+                    new_prc20.total_supply = new_total;
+                    *(prc20) = Some(new_prc20);
                     Ok(new_total.checked_sub(&old_total).unwrap_or_else(Zero::zero))
                 },
             )?;
@@ -519,14 +524,16 @@ impl<T: Config> Pallet<T> {
                         .unwrap_or_else(Zero::zero))
                 },
             )?;
-            let _ = TotalSupply::<T>::try_mutate(
+            let _ = Currencies::<T>::try_mutate(
                 currency_id,
-                |total_supply| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_total = total_supply.ok_or(Error::<T>::CurrencyIdNotExist)?;
+                |prc20| -> Result<BalanceOf<T>, DispatchError> {
+                    let mut new_prc20 = prc20.clone().ok_or(Error::<T>::CurrencyIdNotExist)?;
+                    let old_total = new_prc20.total_supply;
                     let new_total = old_total
                         .checked_sub(&actual_number)
                         .unwrap_or_else(Zero::zero);
-                    *total_supply = Some(new_total);
+                    new_prc20.total_supply = new_total;
+                    *(prc20) = Some(new_prc20);
                     Ok(old_total.checked_sub(&new_total).unwrap_or_else(Zero::zero))
                 },
             )?;
@@ -687,14 +694,16 @@ impl<T: Config> Pallet<T> {
                     Ok(old_val.checked_sub(&new_val).unwrap_or_else(Zero::zero))
                 },
             )?;
-            let _ = TotalSupply::<T>::try_mutate(
+            let _ = Currencies::<T>::try_mutate(
                 currency_id,
-                |total_supply| -> Result<BalanceOf<T>, DispatchError> {
-                    let old_total = total_supply.ok_or(Error::<T>::CurrencyIdNotExist)?;
+                |prc20| -> Result<BalanceOf<T>, DispatchError> {
+                    let mut new_prc20 = prc20.clone().ok_or(Error::<T>::CurrencyIdNotExist)?;
+                    let old_total = new_prc20.total_supply;
                     let new_total = old_total
                         .checked_sub(&actual_number)
                         .unwrap_or_else(Zero::zero);
-                    *total_supply = Some(new_total);
+                    new_prc20.total_supply = new_total;
+                    *(prc20) = Some(new_prc20);
                     Ok(old_total.checked_sub(&new_total).unwrap_or_else(Zero::zero))
                 },
             )?;
