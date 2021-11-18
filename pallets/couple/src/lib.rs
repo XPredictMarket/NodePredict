@@ -592,28 +592,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Accounts that provide the correct results can withdraw part of the settlement token
-        /// rewards
-        ///
-        /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(1_000 + T::DbWeight::get().reads_writes(1, 1))]
-        pub fn withdrawal_reward(
-            origin: OriginFor<T>,
-            proposal_id: ProposalIdOf<T>,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-            let result =
-                ProposalResult::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotResult)?;
-            let update = T::Autonomy::temporary_results(proposal_id, &who)?;
-            ensure!(result == update, Error::<T>::UploadedNotResult);
-            let total = T::Autonomy::statistical_results(proposal_id, result);
-            let number = with_transaction_result(|| -> Result<BalanceOf<T>, DispatchError> {
-                Self::inner_withdrawal_reward(&who, proposal_id, total)
-            })?;
-            Self::deposit_event(Event::WithdrawalReward(who, proposal_id, number));
-            Ok(().into())
-        }
-
         /// Set result for proposal
         ///
         /// The dispatch origin for this call is `root`.

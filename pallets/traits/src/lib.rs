@@ -28,7 +28,6 @@ pub enum ProposalStatus {
     OriginalPrediction,
     WaitingForResults,
     ResultAnnouncement,
-    Inlitigation,
     End,
 }
 

@@ -392,9 +392,12 @@ fn predict_genesis(
             withdrawal_fee_rate: 50,
         }),
         autonomy: Some(AutonomyConfig {
-            minimal_number: 10000 * 100000000,
-            publicity_interval: 2 * 24 * 60 * 60 * 1000, // 2 days
-            report_interval: 3 * 24 * 60 * 60 * 1000,
+            minimal_stake_number: 1000 * 100000000,
+            minimal_review_number: 100 * 100000000,
+            minimal_report_number: 10000 * 100000000,
+            review_cycle: 2 * 24 * 60 * 60 * 1000,
+            result_upload_cycle: 2 * 24 * 60 * 60 * 1000,
+            publicity_period: 2 * 24 * 60 * 60 * 1000,
         }),
         ruler: Some(RulerConfig {
             dividend_address: root_key,

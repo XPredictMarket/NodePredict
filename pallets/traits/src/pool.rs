@@ -31,6 +31,8 @@ where
 
     fn max_proposal_id() -> ProposalIdOf<T>;
     fn proposal_automatic_expiration_time() -> MomentOf<T>;
+    fn proposal_create_time(proposal_id: ProposalIdOf<T>) -> Result<MomentOf<T>, DispatchError>;
+    fn proposal_close_time(proposal_id: ProposalIdOf<T>) -> Result<MomentOf<T>, DispatchError>;
     fn get_proposal_state(proposal_id: ProposalIdOf<T>) -> Result<ProposalStatus, DispatchError>;
     fn set_proposal_state(
         proposal_id: ProposalIdOf<T>,

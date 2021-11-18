@@ -87,3 +87,4 @@ macro_rules! proposal_total_market_liquid_try_mutate {
         )
     };
 }
+

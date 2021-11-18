@@ -670,6 +670,16 @@ impl<T: Config> LiquidityPool<T> for Pallet<T> {
         ProposalAutomaticExpirationTime::<T>::get().unwrap_or_else(Zero::zero)
     }
 
+    fn proposal_create_time(proposal_id: ProposalIdOf<T>) -> Result<MomentOf<T>, DispatchError> {
+        let create_time = ProposalCreateTime::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+        Ok(create_time)
+    }
+
+    fn proposal_close_time(proposal_id: ProposalIdOf<T>) -> Result<MomentOf<T>, DispatchError> {
+        let close_time = ProposalCloseTime::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
+        Ok(close_time)
+    }
+
     fn get_proposal_state(proposal_id: ProposalIdOf<T>) -> Result<Status, DispatchError> {
         match ProposalStatus::<T>::get(proposal_id) {
             Some(state) => Ok(state),
