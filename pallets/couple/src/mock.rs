@@ -124,6 +124,8 @@ type VersionIdOf<T> = <T as ProposalSystem<<T as frame_system::Config>::AccountI
 pub struct ProposalsWrapper {
     pub next_proposal_id: ProposalIdOf<Test>,
     pub interval_time: MomentOf<Test>,
+    pub create_time: HashMap<ProposalIdOf<Test>, MomentOf<Test>>,
+    pub close_time: HashMap<ProposalIdOf<Test>, MomentOf<Test>>,
     pub used_currency_id: HashMap<CurrencyIdOf<Test>, ()>,
     pub proposal_state: HashMap<ProposalIdOf<Test>, ProposalStatus>,
     pub proposal_owner: HashMap<ProposalIdOf<Test>, AccountId>,
@@ -136,6 +138,8 @@ impl ProposalsWrapper {
             next_proposal_id: 0,
             interval_time: 5,
             announcement_time: HashMap::<ProposalIdOf<Test>, MomentOf<Test>>::new(),
+            create_time: HashMap::<ProposalIdOf<Test>, MomentOf<Test>>::new(),
+            close_time: HashMap::<ProposalIdOf<Test>, MomentOf<Test>>::new(),
             used_currency_id: HashMap::<CurrencyIdOf<Test>, ()>::new(),
             proposal_state: HashMap::<ProposalIdOf<Test>, ProposalStatus>::new(),
             proposal_owner: HashMap::<ProposalIdOf<Test>, AccountId>::new(),
@@ -160,6 +164,28 @@ impl LiquidityPool<Test> for ProposalsWrapper {
             wrapper.borrow_mut().next_proposal_id =
                 id.checked_add(1).ok_or(Error::<Test>::ProposalIdOverflow)?;
             Ok(id)
+        })
+    }
+
+    fn proposal_create_time(
+        proposal_id: ProposalIdOf<Test>,
+    ) -> Result<MomentOf<Test>, DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
+            match wrapper.borrow().create_time.get(&proposal_id) {
+                Some(v) => Ok(*v),
+                None => Err("ProposalIdNotExist".into()),
+            }
+        })
+    }
+
+    fn proposal_close_time(
+        proposal_id: ProposalIdOf<Test>,
+    ) -> Result<MomentOf<Test>, DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
+            match wrapper.borrow().close_time.get(&proposal_id) {
+                Some(v) => Ok(*v),
+                None => Err("ProposalIdNotExist".into()),
+            }
         })
     }
 
@@ -271,38 +297,6 @@ impl AutonomyWrapper {
         }
     }
 
-    pub(crate) fn set_temporary_results(
-        proposal_id: ProposalIdOf<Test>,
-        who: &AccountId,
-        currency_id: CurrencyIdOf<Test>,
-    ) {
-        AUTONOMY_WRAPPER.with(|wrapper| -> () {
-            let mut val = wrapper
-                .borrow()
-                .temporary_results
-                .get(&proposal_id)
-                .unwrap_or(&HashMap::<AccountId, CurrencyIdOf<Test>>::new())
-                .clone();
-            val.insert(*who, currency_id);
-            wrapper
-                .borrow_mut()
-                .temporary_results
-                .insert(proposal_id, val);
-
-            let mut val = wrapper
-                .borrow()
-                .statistical_results
-                .get(&proposal_id)
-                .unwrap_or(&HashMap::<CurrencyIdOf<Test>, BalanceOf<Test>>::new())
-                .clone();
-            let count = val.get(&currency_id).unwrap_or(&0) + 1;
-            val.insert(currency_id, count);
-            wrapper
-                .borrow_mut()
-                .statistical_results
-                .insert(proposal_id, val);
-        })
-    }
 }
 
 impl Autonomy<Test> for AutonomyWrapper {

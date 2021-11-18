@@ -314,6 +314,7 @@ impl couple::Config for Runtime {
 
 parameter_types! {
     pub const StakeCurrencyId: CurrencyId = 1;
+    pub const AutonomyId: ModuleId = ModuleId(*b"xpgovern");
 }
 
 impl autonomy::Config for Runtime {
@@ -323,6 +324,7 @@ impl autonomy::Config for Runtime {
     type StakeCurrencyId = StakeCurrencyId;
     type Pool = Proposals;
     type CouplePool = Couple;
+    type AutonomyId = AutonomyId;
 }
 
 impl frame_system::offchain::SigningTypes for Runtime {

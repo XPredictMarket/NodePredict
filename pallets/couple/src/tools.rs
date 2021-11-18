@@ -522,37 +522,4 @@ impl<T: Config> Pallet<T> {
             <TokensOf<T> as Tokens<T::AccountId>>::burn(optional_currency_id, who, number)
         }
     }
-
-    pub(crate) fn inner_withdrawal_reward(
-        who: &T::AccountId,
-        proposal_id: ProposalIdOf<T>,
-        total: BalanceOf<T>,
-    ) -> Result<BalanceOf<T>, DispatchError> {
-        let total_reward =
-            ProposalTotalAutonomyReward::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
-        let currency_id =
-            ProposalCurrencyId::<T>::get(proposal_id).ok_or(Error::<T>::ProposalIdNotExist)?;
-        let start_reward = ProposalAccountRewardStart::<T>::try_mutate(
-            proposal_id,
-            &who,
-            |optional| -> Result<BalanceOf<T>, DispatchError> {
-                let old = optional.unwrap_or_else(Zero::zero);
-                *optional = Some(total_reward);
-                Ok(old)
-            },
-        )?;
-        let number = ProposalCurrentAutonomyReward::<T>::try_mutate_exists(
-            proposal_id,
-            |optional| -> Result<BalanceOf<T>, DispatchError> {
-                let old = optional.unwrap_or_else(Zero::zero);
-                let diff = total_reward
-                    .checked_sub(&start_reward)
-                    .unwrap_or_else(Zero::zero);
-                let number = diff.checked_div(&total).unwrap_or_else(Zero::zero);
-                *optional = old.checked_sub(&number);
-                Ok(number)
-            },
-        )?;
-        Self::appropriation(currency_id, who, number)
-    }
 }

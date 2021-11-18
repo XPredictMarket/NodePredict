@@ -158,6 +158,8 @@ pub struct ProposalsWrapper {
     pub interval_time: MomentOf<Test>,
     pub used_currency_id: HashMap<CurrencyIdOf<Test>, ()>,
     pub announcement_time: HashMap<ProposalIdOf<Test>, MomentOf<Test>>,
+    pub create_time: HashMap<ProposalIdOf<Test>, MomentOf<Test>>,
+    pub close_time: HashMap<ProposalIdOf<Test>, MomentOf<Test>>,
     pub proposal_state: HashMap<ProposalIdOf<Test>, ProposalStatus>,
     pub proposal_owner: HashMap<ProposalIdOf<Test>, AccountId>,
     pub proposal_pair: HashMap<ProposalIdOf<Test>, (CurrencyIdOf<Test>, CurrencyIdOf<Test>)>,
@@ -172,6 +174,8 @@ impl ProposalsWrapper {
             interval_time: 5,
             used_currency_id: HashMap::<CurrencyIdOf<Test>, ()>::new(),
             announcement_time: HashMap::<ProposalIdOf<Test>, MomentOf<Test>>::new(),
+            create_time: HashMap::<ProposalIdOf<Test>, MomentOf<Test>>::new(),
+            close_time: HashMap::<ProposalIdOf<Test>, MomentOf<Test>>::new(),
             proposal_state: HashMap::<ProposalIdOf<Test>, ProposalStatus>::new(),
             proposal_owner: HashMap::<ProposalIdOf<Test>, AccountId>::new(),
             proposal_result: HashMap::<ProposalIdOf<Test>, CurrencyIdOf<Test>>::new(),
@@ -185,14 +189,27 @@ impl ProposalsWrapper {
 pub struct Proposals;
 
 impl Proposals {
-    pub fn set_announcement_time(
+    pub fn set_create_time(
         proposal_id: ProposalIdOf<Test>,
         time: MomentOf<Test>,
     ) -> Result<MomentOf<Test>, DispatchError> {
         PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
             wrapper
                 .borrow_mut()
-                .announcement_time
+                .create_time
+                .insert(proposal_id, time);
+            Ok(time)
+        })
+    }
+
+    pub fn set_close_time(
+        proposal_id: ProposalIdOf<Test>,
+        time: MomentOf<Test>,
+    ) -> Result<MomentOf<Test>, DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
+            wrapper
+                .borrow_mut()
+                .close_time
                 .insert(proposal_id, time);
             Ok(time)
         })
@@ -298,6 +315,28 @@ impl LiquidityPool<Test> for Proposals {
         0
     }
 
+    fn proposal_create_time(
+        proposal_id: ProposalIdOf<Test>,
+    ) -> Result<MomentOf<Test>, DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
+            match wrapper.borrow().create_time.get(&proposal_id) {
+                Some(v) => Ok(*v),
+                None => Err("ProposalIdNotExist".into()),
+            }
+        })
+    }
+
+    fn proposal_close_time(
+        proposal_id: ProposalIdOf<Test>,
+    ) -> Result<MomentOf<Test>, DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<MomentOf<Test>, DispatchError> {
+            match wrapper.borrow().close_time.get(&proposal_id) {
+                Some(v) => Ok(*v),
+                None => Err("ProposalIdNotExist".into()),
+            }
+        })
+    }
+
     fn get_proposal_state(
         proposal_id: ProposalIdOf<Test>,
     ) -> Result<ProposalStatus, DispatchError> {
@@ -369,7 +408,7 @@ impl LiquidityCouple<Test> for Proposals {
             wrapper
                 .borrow_mut()
                 .proposal_state
-                .insert(proposal_id, ProposalStatus::End);
+                .insert(proposal_id, ProposalStatus::ResultAnnouncement);
             Ok(())
         })
     }
@@ -399,6 +438,7 @@ impl LiquidityCouple<Test> for Proposals {
 
 parameter_types! {
     pub const StakeCurrencyId: CurrencyId = 1;
+    pub const AutonomyId: ModuleId = ModuleId(*b"xpgovern");
 }
 
 impl autonomy::Config for Test {
@@ -408,6 +448,7 @@ impl autonomy::Config for Test {
     type StakeCurrencyId = StakeCurrencyId;
     type Pool = Proposals;
     type CouplePool = Proposals;
+    type AutonomyId = AutonomyId;
 }
 
 pub fn run_to_block<Module: Hooks<BlockNumber>>(n: BlockNumber) {
@@ -450,9 +491,12 @@ where
     };
 
     let autonomy_genesis = autonomy::GenesisConfig::<Test> {
-        minimal_number: 100,
-        publicity_interval: 0,
-        report_interval: 0,
+        minimal_stake_number: 1000,
+        minimal_review_number: 100,
+        minimal_report_number: 10000,
+        review_cycle: 5,
+        result_upload_cycle: 0,
+        publicity_period: 0,
     };
 
     let mut t = frame_system::GenesisConfig::default()
