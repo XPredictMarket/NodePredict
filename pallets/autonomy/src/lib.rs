@@ -539,7 +539,7 @@ pub mod pallet {
         /// tokens.
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1, 1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(5, 2))]
         pub fn stake(origin: OriginFor<T>, stake_number: BalanceOf<T>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
             let number = with_transaction_result(|| Self::inner_stake(&who, stake_number))?;
@@ -551,7 +551,7 @@ pub mod pallet {
         /// governance tokens by himself.
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(6, 3))]
         pub fn unstake(origin: OriginFor<T>, unstake_number: BalanceOf<T>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
             let number = with_transaction_result(|| Self::inner_unstake(&who, unstake_number))?;
@@ -564,7 +564,7 @@ pub mod pallet {
         /// The governance node decides whether the proposal is approved by voting agree or against
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.       
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(5, 2))]
         pub fn review(origin: OriginFor<T>, vote_number: BalanceOf<T>, proposal_id: ProposalIdOf<T>, vote_type: bool) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
             Self::ensure_proposal_status(proposal_id, ProposalStatus::OriginalPrediction)?;
@@ -586,7 +586,7 @@ pub mod pallet {
         /// will directly punish him for the amount of votes he pledged in this proposal.
         ///
         /// The dispatch origin for this call is `root`.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(9, 2))]
         pub fn slash(
             origin: OriginFor<T>, 
             who: T::AccountId,
@@ -616,7 +616,7 @@ pub mod pallet {
         /// When all malicious nodes are slashed, this flag is set to completed
         ///
         /// The dispatch origin for this call is `root`.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(9, 1))]
         pub fn slash_finish(
             origin: OriginFor<T>, 
             proposal_id: ProposalIdOf<T>,
@@ -657,7 +657,7 @@ pub mod pallet {
         /// all nodes that cast incorrect results will be punished.
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(4, 2))]
         pub fn report(
             origin: OriginFor<T>,
             proposal_id: ProposalIdOf<T>,
@@ -678,7 +678,7 @@ pub mod pallet {
         /// out the staked tokens
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(5, 1))]
         pub fn take_out(
             origin: OriginFor<T>,
             proposal_id: ProposalIdOf<T>
@@ -694,7 +694,7 @@ pub mod pallet {
         /// votes that were locked when uploading the results
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().writes(3, 2))]
         pub fn unlock(
             origin: OriginFor<T>,
             proposal_id: ProposalIdOf<T>
