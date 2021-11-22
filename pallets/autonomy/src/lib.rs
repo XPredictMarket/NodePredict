@@ -247,7 +247,7 @@ pub mod pallet {
         T::AccountId, 
         Twox64Concat,
         u64,
-        (T::BlockNumber, BalanceOf<T>),
+        (MomentOf<T>, BalanceOf<T>),
         OptionQuery>;
 
     #[pallet::storage]
@@ -551,7 +551,7 @@ pub mod pallet {
         /// governance tokens by himself.
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(6, 3))]
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(6, 3))]
         pub fn unstake(origin: OriginFor<T>, unstake_number: BalanceOf<T>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
             let number = with_transaction_result(|| Self::inner_unstake(&who, unstake_number))?;
@@ -564,7 +564,7 @@ pub mod pallet {
         /// The governance node decides whether the proposal is approved by voting agree or against
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.       
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(5, 2))]
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(5, 2))]
         pub fn review(origin: OriginFor<T>, vote_number: BalanceOf<T>, proposal_id: ProposalIdOf<T>, vote_type: bool) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
             Self::ensure_proposal_status(proposal_id, ProposalStatus::OriginalPrediction)?;
@@ -586,7 +586,7 @@ pub mod pallet {
         /// will directly punish him for the amount of votes he pledged in this proposal.
         ///
         /// The dispatch origin for this call is `root`.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(9, 2))]
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(9, 2))]
         pub fn slash(
             origin: OriginFor<T>, 
             who: T::AccountId,
@@ -616,7 +616,7 @@ pub mod pallet {
         /// When all malicious nodes are slashed, this flag is set to completed
         ///
         /// The dispatch origin for this call is `root`.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(9, 1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(9, 1))]
         pub fn slash_finish(
             origin: OriginFor<T>, 
             proposal_id: ProposalIdOf<T>,
@@ -657,7 +657,7 @@ pub mod pallet {
         /// all nodes that cast incorrect results will be punished.
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(4, 2))]
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(4, 2))]
         pub fn report(
             origin: OriginFor<T>,
             proposal_id: ProposalIdOf<T>,
@@ -678,7 +678,7 @@ pub mod pallet {
         /// out the staked tokens
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(5, 1))]
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(5, 1))]
         pub fn take_out(
             origin: OriginFor<T>,
             proposal_id: ProposalIdOf<T>
@@ -694,7 +694,7 @@ pub mod pallet {
         /// votes that were locked when uploading the results
         ///
         /// The dispatch origin for this call must be `Signed` by the transactor.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(3, 2))]
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(3, 2))]
         pub fn unlock(
             origin: OriginFor<T>,
             proposal_id: ProposalIdOf<T>
@@ -892,7 +892,7 @@ impl<T: Config> Pallet<T> {
                 let delay = delay_num.checked_mul(&upload_time).ok_or(Error::<T>::Overflow)?;
                 let delay = delay.checked_add(&upload_time).ok_or(Error::<T>::Overflow)?;
                 if diff >= delay{
-                    if (p1_balance == p2_balance) && (p1_balance != Zero::zero()){
+                    if p1_balance == p2_balance{
                         let new_v = delay_num.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
                         UploadDelay::<T>::insert(index, new_v);
                     }
@@ -951,8 +951,10 @@ impl<T: Config> Pallet<T> {
         vote_number: BalanceOf<T>, 
         vote_type: bool) 
         -> Result<(), DispatchError> {
-        let usable_num = Self::inner_get_snapshot_usable_num(who)?;
+        let create_time = T::Pool::proposal_create_time(proposal_id)?;    
+        let usable_num = Self::inner_get_snapshot_usable_num(who, create_time)?;
         ensure!(vote_number <= usable_num, Error::<T>::InsufficientNumberOfVotes);
+        
         let minimal_number = MinimalReviewNumber::<T>::get().unwrap_or_else(Zero::zero);
         NodeReviewVotingStatus::<T>::try_mutate(
             proposal_id,
@@ -1026,7 +1028,8 @@ impl<T: Config> Pallet<T> {
 
     fn inner_stake(who: &T::AccountId, stake_number: BalanceOf<T>) -> Result<BalanceOf<T>, DispatchError> {
         let currency_id = T::StakeCurrencyId::get();
-        let block_number = frame_system::Pallet::<T>::block_number();
+        //let block_number = frame_system::Pallet::<T>::block_number();
+        let now = <TimeOf<T> as Time>::now();
         let minimal_number = MinimalStakeNumber::<T>::get().unwrap_or_else(Zero::zero);
         let snap_shot_num = Self::inner_snapshot_num_update(who)?;
         let last_snap_shot_num = snap_shot_num - 1;
@@ -1042,7 +1045,7 @@ impl<T: Config> Pallet<T> {
                     },
                     None => {
                         let new_balance = balance.checked_add(&stake_number).ok_or(Error::<T>::Overflow)?;
-                        *option_num = Some((block_number, new_balance));
+                        *option_num = Some((now, new_balance));
                         Ok(())
                     }
                 }
@@ -1073,7 +1076,8 @@ impl<T: Config> Pallet<T> {
         unstake_number: BalanceOf<T>
     ) -> Result<BalanceOf<T>, DispatchError> {
         let currency_id = T::StakeCurrencyId::get();
-        let block_number = frame_system::Pallet::<T>::block_number();
+        // let block_number = frame_system::Pallet::<T>::block_number();
+        let now = <TimeOf<T> as Time>::now();
         let minimal_number = MinimalStakeNumber::<T>::get().unwrap_or_else(Zero::zero);
         let snap_shot_num = Self::inner_snapshot_num_update(who)?;
         let last_snap_shot_num = snap_shot_num - 1;
@@ -1089,7 +1093,7 @@ impl<T: Config> Pallet<T> {
                     },
                     None => {
                         let new_balance = balance.checked_sub(&unstake_number).unwrap_or_else(Zero::zero);
-                        *option_num = Some((block_number, new_balance));
+                        *option_num = Some((now, new_balance));
                         Ok(())
                     }
                 }
@@ -1122,11 +1126,18 @@ impl<T: Config> Pallet<T> {
         current_number >= minimal_number
     }
 
-    fn inner_get_snapshot_usable_num(who: &T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
+    fn inner_get_snapshot_usable_num(who: &T::AccountId, time: MomentOf<T>) -> Result<BalanceOf<T>, DispatchError> {
         let snapshot_num = SnapShotNum::<T>::get(&who).ok_or(Error::<T>::SnapshotNumNotEntry)?;
-        let (_, balance) =  SnapShot::<T>::get(&who, snapshot_num).ok_or(Error::<T>::SnapshotNotEntry)?;
+        let mut snapshot_balance: BalanceOf<T> = 0u32.into(); 
+        for num in (0..snapshot_num+1).rev(){
+            let (snap_shot_time, balance) =  SnapShot::<T>::get(&who, num).ok_or(Error::<T>::SnapshotNotEntry)?;
+            if snap_shot_time <= time{
+                snapshot_balance = balance;
+                break;
+            }
+        }
         let lock_balance = StakedNodeLockTotalNum::<T>::get(&who).unwrap_or_else(Zero::zero);
-        let usable_balance = balance.checked_sub(&lock_balance).ok_or(Error::<T>::Overflow)?;
+        let usable_balance = snapshot_balance.checked_sub(&lock_balance).unwrap_or_else(Zero::zero);
         Ok(usable_balance)
     }
 
@@ -1233,7 +1244,8 @@ impl<T: Config> Pallet<T> {
             Error::<T>::NotAStakingNode
         );
         Self::ensure_proposal_optional_id(proposal_id, result)?;
-        let usable_balance = Self::inner_get_snapshot_usable_num(who)?;
+        let close_time = T::Pool::proposal_close_time(proposal_id)?;
+        let usable_balance = Self::inner_get_snapshot_usable_num(who, close_time)?;
         ensure!(usable_balance >= vote_num, Error::<T>::InsufficientNumberOfVotes);
         let lock_ratio = LockRatio::<T>::get().ok_or(Error::<T>::LockRatioNotSet)?;
         let lock_num = vote_num.checked_mul(&lock_ratio).ok_or(Error::<T>::Overflow)?;
