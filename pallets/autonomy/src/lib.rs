@@ -49,7 +49,7 @@ use xpmrl_traits::{
     ProposalStatus,
 };
 use xpmrl_utils::{with_transaction_result, storage_try_mutate};
-use sp_std::collections::btree_map::BTreeMap;
+use sp_std::{collections::btree_map::BTreeMap, cmp::Ordering};
 
 /// Defines application identifier for crypto keys of this module.
 ///
@@ -259,7 +259,6 @@ pub mod pallet {
     #[pallet::getter(fn report_asset_pool )]
     pub type ReportAssetPool<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>,OptionQuery>;
-
     #[pallet::storage]
     #[pallet::getter(fn node_result_voting_status)]
     pub type NodeResultVotingStatus<T: Config> = StorageDoubleMap<
@@ -867,6 +866,7 @@ impl<T: Config> Pallet<T> {
                 let delay = delay_num.checked_mul(&review_time).ok_or(Error::<T>::Overflow)?;
                 let delay = delay.checked_add(&review_time).ok_or(Error::<T>::Overflow)?;
                 if diff >= delay{
+                    let mininal_num = MinimalReviewNumber::<T>::get().unwrap_or_else(Zero::zero);
                     if ReviewEqualFlag::<T>::get(index).is_some(){
                             let new_v = delay_num.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
                             ReviewDelay::<T>::insert(index, new_v);
@@ -874,7 +874,7 @@ impl<T: Config> Pallet<T> {
                     else{
                         let v1 = ReviewVotingStatus::<T>::get(index, true).unwrap_or_else(Zero::zero);
                         let v2 = ReviewVotingStatus::<T>::get(index, false).unwrap_or_else(Zero::zero);
-                        if v1 > v2{
+                        if v1 > v2 && v1 >= mininal_num{
                             T::Pool::set_proposal_state(index, ProposalStatus::FormalPrediction)?;
                         }
                         else{
@@ -892,20 +892,22 @@ impl<T: Config> Pallet<T> {
                 let delay = delay_num.checked_mul(&upload_time).ok_or(Error::<T>::Overflow)?;
                 let delay = delay.checked_add(&upload_time).ok_or(Error::<T>::Overflow)?;
                 if diff >= delay{
-                    if p1_balance == p2_balance{
-                        let new_v = delay_num.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
-                        UploadDelay::<T>::insert(index, new_v);
-                    }
-                    else if p1_balance > p2_balance{
-                        T::CouplePool::set_proposal_result(index, p1)?;
-                        T::Pool::set_proposal_state(index, ProposalStatus::ResultAnnouncement)?;
-                        ResultAnnouncementTime::<T>::insert(index, now);
-                    }
-                    else if p1_balance < p2_balance{
-                        T::CouplePool::set_proposal_result(index, p2)?;
-                        T::Pool::set_proposal_state(index, ProposalStatus::ResultAnnouncement)?;
-                        ResultAnnouncementTime::<T>::insert(index, now);
-                    }
+                    match p1_balance.cmp(&p2_balance) {
+                        Ordering::Less => {
+                            T::CouplePool::set_proposal_result(index, p2)?;
+                            T::Pool::set_proposal_state(index, ProposalStatus::ResultAnnouncement)?;
+                            ResultAnnouncementTime::<T>::insert(index, now);
+                        }
+                        Ordering::Equal => {
+                            let new_v = delay_num.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
+                            UploadDelay::<T>::insert(index, new_v);
+                        }
+                        Ordering::Greater =>{
+                            T::CouplePool::set_proposal_result(index, p1)?;
+                            T::Pool::set_proposal_state(index, ProposalStatus::ResultAnnouncement)?;
+                            ResultAnnouncementTime::<T>::insert(index, now);
+                        }
+                    };
                 }
             }
             ProposalStatus::ResultAnnouncement => {
