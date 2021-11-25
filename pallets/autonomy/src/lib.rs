@@ -868,8 +868,14 @@ impl<T: Config> Pallet<T> {
                 if diff >= delay{
                     let mininal_num = MinimalReviewNumber::<T>::get().unwrap_or_else(Zero::zero);
                     if ReviewEqualFlag::<T>::get(index).is_some(){
+                        if now > close_time {
+                            T::Pool::set_proposal_state(index, ProposalStatus::End)?;
+                        }
+                        else{
                             let new_v = delay_num.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
                             ReviewDelay::<T>::insert(index, new_v);
+                        }
+                            
                     }
                     else{
                         let v1 = ReviewVotingStatus::<T>::get(index, true).unwrap_or_else(Zero::zero);
