@@ -865,27 +865,25 @@ impl<T: Config> Pallet<T> {
                 let delay_num = ReviewDelay::<T>::get(index).unwrap_or_else(Zero::zero);
                 let delay = delay_num.checked_mul(&review_time).ok_or(Error::<T>::Overflow)?;
                 let delay = delay.checked_add(&review_time).ok_or(Error::<T>::Overflow)?;
+                if now > close_time {
+                    T::Pool::set_proposal_state(index, ProposalStatus::End)?;
+                }
                 if diff >= delay{
-                    let mininal_num = MinimalReviewNumber::<T>::get().unwrap_or_else(Zero::zero);
                     if ReviewEqualFlag::<T>::get(index).is_some(){
-                        if now > close_time {
-                            T::Pool::set_proposal_state(index, ProposalStatus::End)?;
-                        }
-                        else{
                             let new_v = delay_num.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
                             ReviewDelay::<T>::insert(index, new_v);
-                        }
-                            
                     }
                     else{
-                        let v1 = ReviewVotingStatus::<T>::get(index, true).unwrap_or_else(Zero::zero);
-                        let v2 = ReviewVotingStatus::<T>::get(index, false).unwrap_or_else(Zero::zero);
-                        if v1 > v2 && v1 >= mininal_num{
-                            T::Pool::set_proposal_state(index, ProposalStatus::FormalPrediction)?;
-                        }
-                        else{
-                            T::Pool::set_proposal_state(index, ProposalStatus::End)?;
-                        }
+                        match ReviewFlag::<T>::get(index) {
+                                Some(_) =>{
+                                    T::Pool::set_proposal_state(index, ProposalStatus::FormalPrediction)?;
+                                }
+                                None =>{
+                                    T::Pool::set_proposal_state(index, ProposalStatus::End)?;
+                                }
+                           
+                                
+                            }
                     }
                 }
             }
@@ -994,21 +992,8 @@ impl<T: Config> Pallet<T> {
                         vote_number
                     }
                 };
-                if  new_v >= minimal_number  && 
-                    vote_type  && 
-                    ConsentFlag::<T>::get(proposal_id) == None
-                {
-                    let v = Some(());
-                    flag_try_mutate!(ConsentFlag, proposal_id, v )?;
-                }
-                else if new_v >= minimal_number  && 
-                    !vote_type && 
-                    OppositionFlag::<T>::get(proposal_id) == None
-                {
-                    let v = Some(());
-                    flag_try_mutate!(OppositionFlag, proposal_id, v )?;
-                }
-                if new_v >= minimal_number  && new_v >= opposite_v
+                let total = new_v.checked_add(&opposite_v).ok_or(Error::<T>::Overflow)?;
+                if total >= minimal_number  && new_v >= opposite_v
                 {
                     if vote_type && ReviewFlag::<T>::get(proposal_id) == None{
                         let v = Some(());
