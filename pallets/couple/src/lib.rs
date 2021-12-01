@@ -616,6 +616,30 @@ pub mod pallet {
             Self::deposit_event(Event::SetResult(proposal_id, currency_id));
             Ok(().into())
         }
+
+        /// Set result for proposal when the state is over 
+        ///
+        /// The dispatch origin for this call is `root`.
+        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1))]
+        pub fn set_result_when_end(
+            origin: OriginFor<T>,
+            proposal_id: ProposalIdOf<T>,
+            currency_id: CurrencyIdOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let _ = ensure_root(origin)?;
+            let status = T::Pool::get_proposal_state(proposal_id)?;
+            ensure!(
+                status == ProposalStatus::End,
+                Error::<T>::ProposalAbnormalState
+            );
+            ensure_optional_id_belong_proposal!(currency_id, proposal_id);
+            with_transaction_result(|| {
+                ProposalResult::<T>::insert(proposal_id, currency_id);
+                Self::finally_locked(proposal_id)
+            })?;
+            Self::deposit_event(Event::SetResult(proposal_id, currency_id));
+            Ok(().into())
+        }
     }
 }
 
@@ -640,6 +664,16 @@ impl<T: Config> LiquidityCouple<T> for Pallet<T> {
         result: CurrencyIdOf<T>,
     ) -> Result<(), DispatchError> {
         match Self::set_result(RawOrigin::Root.into(), proposal_id, result) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.error),
+        }
+    }
+
+    fn set_proposal_result_when_end(
+        proposal_id: ProposalIdOf<T>,
+        result: CurrencyIdOf<T>,
+    ) -> Result<(), DispatchError> {
+        match Self::set_result_when_end(RawOrigin::Root.into(), proposal_id, result) {
             Ok(_) => Ok(()),
             Err(e) => Err(e.error),
         }

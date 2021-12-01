@@ -175,16 +175,20 @@ pub mod pallet {
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
+    /// Stored the staked balance of the staked node and whether it is the node mark
     #[pallet::storage]
     #[pallet::getter(fn staked_node)]
     pub type StakedNode<T: Config> =
         StorageMap<_, Blake2_128Concat, T::AccountId, (BalanceOf<T>,bool),OptionQuery>;
 
+    /// Stored the total number of locked votes of all the proposal upload results of 
+    /// the staked node
     #[pallet::storage]
     #[pallet::getter(fn staked_node_lock_total_num)]
     pub type StakedNodeLockTotalNum<T: Config> =
         StorageMap<_, Blake2_128Concat, T::AccountId, BalanceOf<T>, OptionQuery>;
 
+    /// Stored the number of locked votes to a proposal upload result of the staked node 
     #[pallet::storage]
     #[pallet::getter(fn staked_node_lock_num)]
     pub type StakedNodeLockNum<T: Config> =
@@ -197,6 +201,7 @@ pub mod pallet {
         BalanceOf<T>, 
         OptionQuery>;
 
+    /// Stored the number of review votes to a proposal by the node 
     #[pallet::storage]
     #[pallet::getter(fn node_review_voting_status)]
     pub type NodeReviewVotingStatus<T: Config> = StorageDoubleMap<
@@ -208,6 +213,7 @@ pub mod pallet {
         BTreeMap<bool, BalanceOf<T>>,
         OptionQuery>;
     
+    /// Stored the total number of votes for review (for and against) of a proposal
     #[pallet::storage]
     #[pallet::getter(fn review_voting_status)]
     pub type ReviewVotingStatus <T: Config> = StorageDoubleMap<
@@ -219,26 +225,19 @@ pub mod pallet {
         BalanceOf<T>, 
         OptionQuery>;    
 
-    #[pallet::storage]
-    #[pallet::getter(fn consent_flag)]
-    pub type ConsentFlag<T: Config> =
-        StorageMap<_, Blake2_128Concat, T::ProposalId, (), OptionQuery>;
-
-    #[pallet::storage]
-    #[pallet::getter(fn opposition_flag)]
-    pub type OppositionFlag <T: Config> =
-        StorageMap<_, Blake2_128Concat, T::ProposalId, (), OptionQuery>;
-
+    /// Stored flags with the same number of review votes 
     #[pallet::storage]
     #[pallet::getter(fn review_equal_flag)]
     pub type ReviewEqualFlag<T: Config> =
         StorageMap<_, Blake2_128Concat, T::ProposalId, (), OptionQuery>;
 
+    /// Stored flags of whether the review passed
     #[pallet::storage]
     #[pallet::getter(fn review_flag)]
     pub type ReviewFlag<T: Config> =
         StorageMap<_, Blake2_128Concat, T::ProposalId, (),  OptionQuery>;
 
+    /// Stored Snapshot of node votes
     #[pallet::storage]
     #[pallet::getter(fn snap_shot)]
     pub type SnapShot<T: Config> = StorageDoubleMap<
@@ -250,15 +249,25 @@ pub mod pallet {
         (MomentOf<T>, BalanceOf<T>),
         OptionQuery>;
 
+    /// Stored Snapshot num of node votes
     #[pallet::storage]
     #[pallet::getter(fn snap_shot_num)]
     pub type SnapShotNum<T: Config> =
         StorageMap<_, Blake2_128Concat, T::AccountId, u64, OptionQuery>;
 
+    /// Stored reported funding pool
     #[pallet::storage]
     #[pallet::getter(fn report_asset_pool )]
     pub type ReportAssetPool<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>,OptionQuery>;
+
+    /// Stored final reported funding pool
+    #[pallet::storage]
+    #[pallet::getter(fn final_report_asset_pool )]
+    pub type FinalReportAssetPool<T: Config> =
+        StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>,OptionQuery>;
+
+    /// Stored the number of upload result votes to a proposal by the node 
     #[pallet::storage]
     #[pallet::getter(fn node_result_voting_status)]
     pub type NodeResultVotingStatus<T: Config> = StorageDoubleMap<
@@ -270,6 +279,7 @@ pub mod pallet {
         (CurrencyIdOf<T>, BalanceOf<T>),
         OptionQuery>;
 
+    /// Stored the total number of votes for upload result of a proposal
     #[pallet::storage]
     #[pallet::getter(fn result_voting_status)]
     pub type ResultVotingStatus <T: Config> = StorageDoubleMap<
@@ -281,6 +291,7 @@ pub mod pallet {
         BalanceOf<T>, 
         OptionQuery>;
 
+    /// Stored the number of report votes to a proposal by the account
     #[pallet::storage]
     #[pallet::getter(fn account_report_number)]
     pub type AccountReportNumber<T: Config> = StorageDoubleMap<
@@ -293,16 +304,19 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// Stored flag of successful reporting 
     #[pallet::storage]
     #[pallet::getter(fn report_success_flag )]
     pub type ReportSuccessFlag<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, (),  OptionQuery>;
 
+    /// Stored flag of all slash finish 
     #[pallet::storage]
     #[pallet::getter(fn slash_finish_flag )]
     pub type SlashFinishFlag<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, (), OptionQuery>;
 
+    /// Stored the number of votes that users reported on proposal
     #[pallet::storage]
     #[pallet::getter(fn account_slash_number )]
     pub type AccountSlashNumber<T: Config> = StorageDoubleMap<
@@ -314,51 +328,63 @@ pub mod pallet {
         BalanceOf<T>,
         OptionQuery>;
 
+    /// Stored the total number of votes reported by the proposal
     #[pallet::storage]
     #[pallet::getter(fn report_voting_status )]
     pub type ReportVotingStatus<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, BalanceOf<T>,OptionQuery>;
 
+    /// Stored the minimal number of review
     #[pallet::storage]
     #[pallet::getter(fn minimal_review_number)]
     pub type MinimalReviewNumber<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
 
+    /// Stored the minimal number of stake
     #[pallet::storage]
     #[pallet::getter(fn minimal_stake_number)]
     pub type MinimalStakeNumber<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
 
+    /// Stored the minimal number of report
     #[pallet::storage]
     #[pallet::getter(fn minimal_report_number)]
     pub type MinimalReportNumber<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
 
+    /// Stored the lock ratio
     #[pallet::storage]
     #[pallet::getter(fn lock_ratio)]
     pub type LockRatio<T: Config> = StorageValue<_, BalanceOf<T>, OptionQuery>;
 
+    /// Stored the review cycle
     #[pallet::storage]
     #[pallet::getter(fn review_cycle)]
     pub type ReviewCycle<T: Config> = StorageValue<_, MomentOf<T>, OptionQuery>;
 
+    /// Stored the result upload cycle
     #[pallet::storage]
     #[pallet::getter(fn result_upload_cycle)]
     pub type ResultUploadCycle<T: Config> = StorageValue<_, MomentOf<T>, OptionQuery>;
 
+    /// Stored the publicity period
     #[pallet::storage]
     #[pallet::getter(fn publicity_period)]
     pub type PublicityPeriod<T: Config> = StorageValue<_, MomentOf<T>, OptionQuery>;
     
+    /// Stored the review delay times
     #[pallet::storage]
     #[pallet::getter(fn review_delay)]
     pub type ReviewDelay<T: Config> = StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>, OptionQuery>;
     
+    /// Stored the upload delay times
     #[pallet::storage]
     #[pallet::getter(fn upload_delay)]
     pub type UploadDelay<T: Config> = StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>, OptionQuery>;
     
+    /// Stored the report delay times
     #[pallet::storage]
     #[pallet::getter(fn report_delay)]
     pub type ReportDelay<T: Config> = StorageMap<_, Blake2_128Concat, ProposalIdOf<T>, MomentOf<T>, OptionQuery>;
 
+    /// Stored the result announcement time of proposal
     #[pallet::storage]
     #[pallet::getter(fn result_announcement_time )]
     pub type ResultAnnouncementTime<T: Config> =
@@ -474,8 +500,6 @@ pub mod pallet {
         ReviewStakedNumberZero,
         /// The node has participated in a review vote
         NodeHasAlreadyReview,
-        /// The user has already reported once
-        AccountHasAlreadyReport,
         /// The minimum number of reports is not set
         MinimalReportNumberNotSet,
         /// Report unsuccessful
@@ -484,6 +508,8 @@ pub mod pallet {
         AccountHasBeenSlashed,
         /// Slash has been completed
         SlashHasBeenCompleted,
+        /// Slash has not been completed
+        SlashHasNotBeenCompleted,
         /// Snapshot re-entry
         SnapshotReEntry,
         /// The number of snapshots is not entered
@@ -506,7 +532,9 @@ pub mod pallet {
         /// The proposal has not entered the publicity period
         ProposalHasNotEnteredThePublicityPeriod,
         /// Input ratio is too large
-        InputRatioIsTooLarge
+        InputRatioIsTooLarge,
+        /// Final reprot asser pool num has set
+        FinalReportAssetPoolHasSet
     }   
 
     #[pallet::hooks]
@@ -621,6 +649,7 @@ pub mod pallet {
             proposal_id: ProposalIdOf<T>,
         ) -> DispatchResultWithPostInfo {
             let _ = ensure_root(origin)?;
+            Self::ensure_proposal_status(proposal_id, ProposalStatus::End)?;
             with_transaction_result(|| Self::inner_slash_finish(proposal_id))?;
             Self::deposit_event(Event::<T>::SlashFinsh(proposal_id));
             Ok(().into())
@@ -856,11 +885,9 @@ impl<T: Config> Pallet<T> {
         let state = T::Pool::get_proposal_state(index)?;
         let create_time = T::Pool::proposal_create_time(index)?;
         let close_time = T::Pool::proposal_close_time(index)?;
-        let review_time = ReviewCycle::<T>::get().unwrap_or_else(Zero::zero);
-        let upload_time = ResultUploadCycle::<T>::get().unwrap_or_else(Zero::zero);
-        let report_time = PublicityPeriod::<T>::get().unwrap_or_else(Zero::zero);
         match state{
             ProposalStatus::OriginalPrediction => {
+                let review_time = ReviewCycle::<T>::get().unwrap_or_else(Zero::zero);
                 let diff = now.checked_sub(&create_time).unwrap_or_else(Zero::zero);
                 let delay_num = ReviewDelay::<T>::get(index).unwrap_or_else(Zero::zero);
                 let delay = delay_num.checked_mul(&review_time).ok_or(Error::<T>::Overflow)?;
@@ -888,14 +915,15 @@ impl<T: Config> Pallet<T> {
                 }
             }
             ProposalStatus::WaitingForResults => {
-                let (p1, p2) = T::CouplePool::proposal_pair(index)?;
-                let p1_balance = ResultVotingStatus::<T>::get(index, p1).unwrap_or_else(Zero::zero);
-                let p2_balance = ResultVotingStatus::<T>::get(index, p2).unwrap_or_else(Zero::zero);
+                let upload_time = ResultUploadCycle::<T>::get().unwrap_or_else(Zero::zero);
                 let diff = now.checked_sub(&close_time).unwrap_or_else(Zero::zero);
                 let delay_num = UploadDelay::<T>::get(index).unwrap_or_else(Zero::zero);
                 let delay = delay_num.checked_mul(&upload_time).ok_or(Error::<T>::Overflow)?;
                 let delay = delay.checked_add(&upload_time).ok_or(Error::<T>::Overflow)?;
                 if diff >= delay{
+                    let (p1, p2) = T::CouplePool::proposal_pair(index)?;
+                    let p1_balance = ResultVotingStatus::<T>::get(index, p1).unwrap_or_else(Zero::zero);
+                    let p2_balance = ResultVotingStatus::<T>::get(index, p2).unwrap_or_else(Zero::zero);
                     match p1_balance.cmp(&p2_balance) {
                         Ordering::Less => {
                             T::CouplePool::set_proposal_result(index, p2)?;
@@ -915,6 +943,7 @@ impl<T: Config> Pallet<T> {
                 }
             }
             ProposalStatus::ResultAnnouncement => {
+                let report_time = PublicityPeriod::<T>::get().unwrap_or_else(Zero::zero);
                 let announcement_time = ResultAnnouncementTime::<T>::get(index)
                     .ok_or(Error::<T>::ProposalHasNotEnteredThePublicityPeriod)?;
                 let diff = now.checked_sub(&announcement_time).unwrap_or_else(Zero::zero);
@@ -1031,14 +1060,14 @@ impl<T: Config> Pallet<T> {
         SnapShot::<T>::try_mutate(
             &who, 
             snap_shot_num,
-            |option_num| -> Result<(), DispatchError> {
-                match option_num {
+            |optional| -> Result<(), DispatchError> {
+                match optional {
                     Some(_) => {
                         Err(Error::<T>::SnapshotReEntry.into())
                     },
                     None => {
                         let new_balance = balance.checked_add(&stake_number).ok_or(Error::<T>::Overflow)?;
-                        *option_num = Some((now, new_balance));
+                        *optional = Some((now, new_balance));
                         Ok(())
                     }
                 }
@@ -1046,8 +1075,8 @@ impl<T: Config> Pallet<T> {
         )?;
         StakedNode::<T>::try_mutate(
             &who, 
-            |option_num| -> Result<(), DispatchError> {
-                let (new_balance, new_node_flag) = match option_num {
+            |optional| -> Result<(), DispatchError> {
+                let (new_balance, new_node_flag) = match optional {
                     Some(tuple) => {
                         let (old_balance, _) = tuple;
                         let new_balance = old_balance.checked_add(&stake_number).ok_or(Error::<T>::Overflow)?;
@@ -1057,7 +1086,7 @@ impl<T: Config> Pallet<T> {
                         (stake_number, Self::inner_update_stake_node(stake_number, minimal_number))
                     }
                 };
-                *option_num = Some((new_balance, new_node_flag));
+                *optional = Some((new_balance, new_node_flag));
                 Ok(())
             }
         )?;
@@ -1079,14 +1108,14 @@ impl<T: Config> Pallet<T> {
         SnapShot::<T>::try_mutate(
             &who, 
             snap_shot_num,
-            |option_num| -> Result<(), DispatchError> {
-                match option_num {
+            |optional| -> Result<(), DispatchError> {
+                match optional {
                     Some(_) => {
                         Err(Error::<T>::SnapshotReEntry.into())
                     },
                     None => {
                         let new_balance = balance.checked_sub(&unstake_number).unwrap_or_else(Zero::zero);
-                        *option_num = Some((now, new_balance));
+                        *optional = Some((now, new_balance));
                         Ok(())
                     }
                 }
@@ -1094,13 +1123,13 @@ impl<T: Config> Pallet<T> {
         )?;
         let actual_number = StakedNode::<T>::try_mutate_exists(
             &who,
-            |option_num| -> Result<BalanceOf<T>, DispatchError> {
-                match option_num {
+            |optional| -> Result<BalanceOf<T>, DispatchError> {
+                match optional {
                     Some(tuple) => {
                         let (old_balance, _) = tuple;
                         let new_balance = old_balance.checked_sub(&unstake_number).unwrap_or_else(Zero::zero);
                         let actual_number = old_balance.checked_sub(&new_balance).ok_or(Error::<T>::Overflow)?;
-                        *option_num = Some((new_balance, Self::inner_update_stake_node(new_balance, minimal_number)));
+                        *optional = Some((new_balance, Self::inner_update_stake_node(new_balance, minimal_number)));
                         Ok(<TokensOf<T> as Tokens<T::AccountId>>::unreserve(currency_id, who, actual_number)?)
                     }
                     None => {
@@ -1159,33 +1188,63 @@ impl<T: Config> Pallet<T> {
         let _ = <TokensOf<T> as Tokens<T::AccountId>>::transfer(currency_stake_id, who, &autonomy_account, unstake_number)?;
         ReportAssetPool::<T>::try_mutate_exists(
             proposal_id,
-            |option_num| -> Result<(), DispatchError> {
-                let num = match option_num {
+            |optional| -> Result<(), DispatchError> {
+                let num = match optional {
                     Some(old_balance) => {
-                        old_balance.checked_add(&slash_number).ok_or(Error::<T>::Overflow)?
+                        old_balance.checked_add(&unstake_number).ok_or(Error::<T>::Overflow)?
                     }
                     None => {
-                        slash_number
+                        unstake_number
                     }
                 };
-                *option_num = Some(num);
+                *optional = Some(num);
                 Ok(())
             }
         )?;
         AccountSlashNumber::<T>::try_mutate_exists(
             proposal_id,
             &who,
-            |option_num| -> Result<(), DispatchError> {
-                let num = match option_num {
+            |optional| -> Result<(), DispatchError> {
+                let num = match optional {
                     Some(old_balance) => {
-                        old_balance.checked_add(&slash_number).ok_or(Error::<T>::Overflow)?
+                        old_balance.checked_add(&unstake_number).ok_or(Error::<T>::Overflow)?
                     }
                     None => {
-                        slash_number
+                        unstake_number
                     }
                 };
-                *option_num = Some(num);
+                *optional = Some(num);
                 Ok(())
+            }
+        )?;
+        StakedNodeLockTotalNum::<T>::try_mutate(
+            &who,
+            |optional| -> Result<(), DispatchError> {
+                let new_lock_balance = match optional{
+                    Some(lock_balance) => {
+                        lock_balance.checked_sub(&unstake_number).unwrap_or_else(Zero::zero)
+                    }
+                    None => {
+                        unstake_number
+                    }
+                };
+                *optional = Some(new_lock_balance);
+                Ok(())
+            }
+        )?;
+        StakedNodeLockNum::<T>::try_mutate(
+            proposal_id,
+            &who,
+            |optional| -> Result<(), DispatchError> {
+                match optional{
+                    Some(_) => {
+                        *optional = None;
+                        Ok(())
+                    }
+                    None => {
+                        Err(Error::<T>::NoLockedQuantity.into())
+                    }
+                }
             }
         )?;
         Ok(slash_number)
@@ -1220,6 +1279,20 @@ impl<T: Config> Pallet<T> {
                     None => *optional = Some(()),
                 };
                 Ok(())
+            },
+        )?;
+        FinalReportAssetPool::<T>::try_mutate(
+            proposal_id,
+            |optional| -> Result<(), DispatchError> {
+                match optional {
+                    Some(_) => {
+                        Err(Error::<T>::FinalReportAssetPoolHasSet.into())
+                    },
+                    None => {
+                        *optional = Some(pool_num);
+                        Ok(())
+                    }
+                }
             },
         )?;
         Self::inner_swap_result(proposal_id)
@@ -1276,11 +1349,11 @@ impl<T: Config> Pallet<T> {
         NodeResultVotingStatus::<T>::try_mutate(
             proposal_id,
             &who,
-            |option_id| -> Result<(), DispatchError> {
-                match option_id {
+            |optional| -> Result<(), DispatchError> {
+                match optional {
                     Some(_) => Err(Error::<T>::AccountHasAlreadyUploaded.into()),
                     None => {
-                        *option_id = Some((result, vote_num));
+                        *optional = Some((result, vote_num));
                         Ok(())
                     }
                 }
@@ -1289,10 +1362,10 @@ impl<T: Config> Pallet<T> {
         ResultVotingStatus::<T>::try_mutate(
             proposal_id,
             result,
-            |option_sum| -> Result<(), DispatchError> {
-                let mut sum = option_sum.unwrap_or_else(Zero::zero);
+            |optional| -> Result<(), DispatchError> {
+                let mut sum = optional.unwrap_or_else(Zero::zero);
                 sum = sum.checked_add(&vote_num).ok_or(Error::<T>::Overflow)?;
-                *option_sum = Some(sum);
+                *optional = Some(sum);
                 Ok(())
             },
         )?;
@@ -1305,6 +1378,12 @@ impl<T: Config> Pallet<T> {
     ) -> Result<BalanceOf<T>, DispatchError> {
         let currency_id = T::StakeCurrencyId::get();
         let autonomy_account = Self::module_account();
+        if ReportSuccessFlag::<T>::get(proposal_id) == Some(()){
+            ensure!(
+                SlashFinishFlag::<T>::get(proposal_id) == Some(()),
+                Error::<T>::SlashHasNotBeenCompleted,
+            );
+        }
         let report_number =  AccountReportNumber::<T>::try_mutate_exists(
             proposal_id,
             &who,
@@ -1322,7 +1401,7 @@ impl<T: Config> Pallet<T> {
         let reward_num = match ReportSuccessFlag::<T>::get(proposal_id){
             Some(_) => {
                 let base: BalanceOf<T> = 100u32.into();
-                let report_pool_num = ReportAssetPool::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
+                let report_pool_num = FinalReportAssetPool::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
                 let total_report_num = ReportVotingStatus::<T>::get(proposal_id).unwrap_or_else(Zero::zero);
                 let report_number = report_number.checked_mul(&base).ok_or(Error::<T>::Overflow)?;
                 let reward_ratio = report_number.checked_div(&total_report_num).ok_or(Error::<T>::Overflow)?;
@@ -1333,6 +1412,21 @@ impl<T: Config> Pallet<T> {
                 Zero::zero()
             }
         };
+        ReportAssetPool::<T>::try_mutate(
+            proposal_id,
+            |optional| -> Result<(), DispatchError> {
+                let num = match optional {
+                    Some(old_balance) => {
+                        old_balance.checked_sub(&reward_num).ok_or(Error::<T>::Overflow)?
+                    }
+                    None => {
+                        Zero::zero()
+                    }
+                };
+                *optional = Some(num);
+                Ok(())
+            }
+        )?;
         <TokensOf<T> as Tokens<T::AccountId>>::unreserve(currency_id, who, report_number)?;
         <TokensOf<T> as Tokens<T::AccountId>>::transfer(currency_id, &autonomy_account, who, reward_num)
     }
@@ -1345,11 +1439,11 @@ impl<T: Config> Pallet<T> {
         let lock_num = StakedNodeLockNum::<T>::try_mutate(
             proposal_id,
             who, 
-            |option_num| -> Result<BalanceOf<T>, DispatchError> {
-                match option_num {
+            |optional| -> Result<BalanceOf<T>, DispatchError> {
+                match optional {
                     Some(lock_num) => {
                         let v = *lock_num;
-                        *option_num = Some(Zero::zero());
+                        *optional = Some(Zero::zero());
                         Ok(v)
                     },
                     None => {
@@ -1360,11 +1454,11 @@ impl<T: Config> Pallet<T> {
         )?;
         StakedNodeLockTotalNum::<T>::try_mutate(
             who,
-            |option_num| -> Result<(), DispatchError> {
-                match option_num{
+            |optional| -> Result<(), DispatchError> {
+                match optional{
                     Some(old_balance) => {
                         let new_balance = old_balance.checked_sub(&lock_num).ok_or(Error::<T>::Overflow)?;
-                        *option_num = Some(new_balance);
+                        *optional = Some(new_balance);
                         Ok(())
                     }
                     None =>{
@@ -1381,8 +1475,7 @@ impl<T: Config> Pallet<T> {
     ) -> Result<(), DispatchError> {
         let (id1, id2) = T::CouplePool::proposal_pair(proposal_id)?;
         let result = T::CouplePool::get_proposal_result(proposal_id)?;
-        T::CouplePool::set_proposal_result(proposal_id, [id1, id2][(result == id1) as usize])?;
-        T::Pool::set_proposal_state(proposal_id, ProposalStatus::End)?;
+        T::CouplePool::set_proposal_result_when_end(proposal_id, [id1, id2][(result == id1) as usize])?;
         Ok(())
     }
 
@@ -1399,7 +1492,11 @@ impl<T: Config> Pallet<T> {
             &who,
             |optional| -> Result<(), DispatchError> {
                 match optional {
-                    Some(_) => Err(Error::<T>::AccountHasAlreadyReport.into()),
+                    Some(old_balance) => {
+                        let new_balance = old_balance.checked_add(&report_num).ok_or(Error::<T>::Overflow)?;
+                        *optional = Some(new_balance);
+                        Ok(())
+                    },
                     None => {
                         *optional = Some(report_num);
                         Ok(())

@@ -18,6 +18,11 @@ where
         proposal_id: ProposalIdOf<T>,
         result: CurrencyIdOf<T>,
     ) -> Result<(), DispatchError>;
+    
+    fn set_proposal_result_when_end(
+        proposal_id: ProposalIdOf<T>,
+        result: CurrencyIdOf<T>,
+    ) -> Result<(), DispatchError>;
 
     fn get_proposal_result(proposal_id: ProposalIdOf<T>) -> Result<CurrencyIdOf<T>, DispatchError>;
 

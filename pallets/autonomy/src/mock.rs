@@ -413,6 +413,23 @@ impl LiquidityCouple<Test> for Proposals {
         })
     }
 
+    fn set_proposal_result_when_end(
+        proposal_id: ProposalIdOf<Test>,
+        result: CurrencyIdOf<Test>,
+    ) -> Result<(), DispatchError> {
+        PROPOSALS_WRAPPER.with(|wrapper| -> Result<(), DispatchError> {
+            wrapper
+                .borrow_mut()
+                .proposal_result
+                .insert(proposal_id, result);
+            wrapper
+                .borrow_mut()
+                .proposal_state
+                .insert(proposal_id, ProposalStatus::End);
+            Ok(())
+        })
+    }
+
     fn proposal_liquidate_currency_id(
         proposal_id: ProposalIdOf<Test>,
     ) -> Result<CurrencyIdOf<Test>, DispatchError> {

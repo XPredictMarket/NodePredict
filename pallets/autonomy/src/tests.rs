@@ -213,6 +213,11 @@ fn test_upload_result() {
             Origin::root(),
             upload_cycle
         ));
+        let publicity_period: MomentOf<Test> = 10;
+        assert_ok!(AutonomyModule::set_publicity_period(
+            Origin::root(),
+            publicity_period
+        ));
         let mut payload = Payload {
             proposal_id: 0,
             result: 3,
@@ -258,8 +263,11 @@ fn test_upload_result() {
             AutonomyModule::upload_result(Origin::none(), payload.clone(), Default::default()),
             Error::<Test>::ProposalOptionNotCorrect
         );
-        run_to_block::<AutonomyModule>(close_time - 1);
         assert_eq!(AutonomyModule::upload_delay(0), None);
+        run_to_block::<AutonomyModule>(close_time + upload_cycle);
+        assert_eq!(AutonomyModule::upload_delay(0), Some(1));
+        assert_eq!(<Proposals as LiquidityPool<Test>>::get_proposal_state(0),
+            Ok(ProposalStatus::WaitingForResults));    
         payload.result = 4;
         assert_eq!(AutonomyModule::node_result_voting_status(0, *account), None);
         assert_eq!(AutonomyModule::result_voting_status(0, 4), None);
@@ -274,6 +282,10 @@ fn test_upload_result() {
             payload.clone(),
             Default::default()
         ));
+        run_to_block::<AutonomyModule>(close_time + upload_cycle + 1);
+        assert_eq!(<Proposals as LiquidityPool<Test>>::get_proposal_state(0),
+            Ok(ProposalStatus::WaitingForResults));   
+
         assert_eq!(AutonomyModule::staked_node_lock_total_num(*account), Some(10));
         assert_eq!(AutonomyModule::staked_node_lock_num(0, *account), Some(10));
         let event = Event::autonomy(crate::Event::UploadResult(*account, 0, 4, 100));
@@ -292,8 +304,8 @@ fn test_upload_result() {
         assert_eq!(AutonomyModule::result_voting_status(0, 4), Some(100));
         assert_eq!(AutonomyModule::node_result_voting_status(0, *other), Some((5, 100)));
         assert_eq!(AutonomyModule::result_voting_status(0, 5), Some(100));
-        run_to_block::<AutonomyModule>(close_time + upload_cycle + 5);
-        assert_eq!(AutonomyModule::upload_delay(0), Some(1));
+        run_to_block::<AutonomyModule>(close_time + upload_cycle + upload_cycle);
+        assert_eq!(AutonomyModule::upload_delay(0), Some(2));
         assert_eq!(<Proposals as LiquidityPool<Test>>::get_proposal_state(0),
             Ok(ProposalStatus::WaitingForResults));
         
@@ -302,7 +314,12 @@ fn test_upload_result() {
             payload2.clone(),
             Default::default()
         ));
-        run_to_block::<AutonomyModule>(close_time + upload_cycle + upload_cycle);
+        run_to_block::<AutonomyModule>(close_time + upload_cycle + upload_cycle + 1);
+        assert_eq!(<Proposals as LiquidityPool<Test>>::get_proposal_state(0),
+            Ok(ProposalStatus::WaitingForResults));   
+        run_to_block::<AutonomyModule>(close_time + upload_cycle + upload_cycle + upload_cycle + 1);   
+        assert_eq!(<Proposals as LiquidityPool<Test>>::get_proposal_state(0),
+            Ok(ProposalStatus::ResultAnnouncement));   
         assert_eq!(<Proposals as LiquidityCouple<Test>>::get_proposal_result(0),
             Ok(5)
         );
@@ -380,9 +397,6 @@ fn test_report() {
         let minimal_report_number: BalanceOf<Test> = 10000;
         assert_ok!(AutonomyModule::set_minimal_report_number(Origin::root(), minimal_report_number));
         assert_ok!(AutonomyModule::report(Origin::signed(*other), 0, 5000));
-        assert_noop!(AutonomyModule::report(Origin::signed(*other), 0, 5000),
-            Error::<Test>::AccountHasAlreadyReport
-        );
         let event = Event::autonomy(crate::Event::Report(*other, 0, 5000));
         assert!(System::events().iter().any(|record| record.event == event));
         assert_eq!(
@@ -501,20 +515,39 @@ fn test_slash_and_take_out_unlock() {
         assert_eq!(AutonomyModule::report_asset_pool(0), None);
         assert_eq!(<TokensOf<Test> as Tokens<AccountId>>::balance(1, &module_account), 0);
         assert_eq!(AutonomyModule::account_slash_number(0, *account), None);
+        assert_eq!(AutonomyModule::staked_node(*account), Some((1000, true)));
+        assert_eq!(AutonomyModule::staked_node_lock_total_num(*account), Some(50));
+        assert_eq!(AutonomyModule::staked_node_lock_num(0, *account), Some(50));
         assert_ok!(AutonomyModule::slash(Origin::root(), *account, 0));
+        assert_eq!(AutonomyModule::staked_node_lock_num(0, *account), None);
+        assert_eq!(AutonomyModule::staked_node_lock_total_num(*account), Some(0));
+        assert_eq!(AutonomyModule::staked_node(*account), Some((950, false)));
         assert_eq!(AutonomyModule::report_asset_pool(0), Some(50));
         assert_eq!(AutonomyModule::account_slash_number(0, *account), Some(50));
         assert_eq!(AutonomyModule::slash_finish_flag(0), None);
         assert_ok!(AutonomyModule::slash(Origin::root(), *other2, 0));
         assert_eq!(AutonomyModule::report_asset_pool(0), Some(150));
         assert_eq!(AutonomyModule::account_slash_number(0, *other2), Some(100));
+        assert_eq!(<Proposals as LiquidityCouple<Test>>::get_proposal_result(0),
+        Ok(4)
+         );
         assert_ok!(AutonomyModule::slash_finish(Origin::root(), 0));
+        assert_eq!(<Proposals as LiquidityCouple<Test>>::get_proposal_result(0),
+        Ok(5)
+        );
         assert_eq!(AutonomyModule::slash_finish_flag(0), Some(()));
         assert_eq!(<TokensOf<Test> as Tokens<AccountId>>::balance(1, &module_account), 150);
         assert_eq!(<TokensOf<Test> as Tokens<AccountId>>::balance(1, other), 94000);
         assert_eq!(<TokensOf<Test> as Tokens<AccountId>>::balance(1, other3), 89000);
+        println!("{:?}", <Proposals as LiquidityPool<Test>>::get_proposal_state(0));
+        println!(" {:?} {:?} {:?}", <TokensOf<Test> as Tokens<AccountId>>::balance(1, &module_account), <TokensOf<Test> as Tokens<AccountId>>::balance(1, other),
+        <TokensOf<Test> as Tokens<AccountId>>::balance(1, other3));
         assert_ok!(AutonomyModule::take_out(Origin::signed(*other), 0));
+        println!(" {:?} {:?} {:?}", <TokensOf<Test> as Tokens<AccountId>>::balance(1, &module_account), <TokensOf<Test> as Tokens<AccountId>>::balance(1, other),
+        <TokensOf<Test> as Tokens<AccountId>>::balance(1, other3));
         assert_ok!(AutonomyModule::take_out(Origin::signed(*other3), 0));
+        println!(" {:?} {:?} {:?}", <TokensOf<Test> as Tokens<AccountId>>::balance(1, &module_account), <TokensOf<Test> as Tokens<AccountId>>::balance(1, other),
+        <TokensOf<Test> as Tokens<AccountId>>::balance(1, other3));
         assert_eq!(<TokensOf<Test> as Tokens<AccountId>>::balance(1, &module_account), 2);
         assert_eq!(<TokensOf<Test> as Tokens<AccountId>>::balance(1, other), 99049);
         assert_eq!(<TokensOf<Test> as Tokens<AccountId>>::balance(1, other3), 99099);
