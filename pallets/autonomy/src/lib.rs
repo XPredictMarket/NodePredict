@@ -488,6 +488,8 @@ pub mod pallet {
         ResultIsEqual,
         /// Insufficient balance to report
         ReportInsufficientBalance,
+        /// Insufficient balance to unstake
+        UnstakeInsufficientBalance,
         /// Attitude should be the same
         AttitudeNeedSame,
         /// The number of report votes is enough, and there is no need to continue to stake
@@ -1098,7 +1100,7 @@ impl<T: Config> Pallet<T> {
         unstake_number: BalanceOf<T>
     ) -> Result<BalanceOf<T>, DispatchError> {
         let currency_id = T::StakeCurrencyId::get();
-        // let block_number = frame_system::Pallet::<T>::block_number();
+        let lock_num = StakedNodeLockTotalNum::<T>::get(&who).unwrap_or_else(Zero::zero);
         let now = <TimeOf<T> as Time>::now();
         let minimal_number = MinimalStakeNumber::<T>::get().unwrap_or_else(Zero::zero);
         let snap_shot_num = Self::inner_snapshot_num_update(who)?;
@@ -1127,6 +1129,8 @@ impl<T: Config> Pallet<T> {
                 match optional {
                     Some(tuple) => {
                         let (old_balance, _) = tuple;
+                        let available_balance = old_balance.checked_sub(&lock_num).unwrap_or_else(Zero::zero);
+                        ensure!(available_balance >= unstake_number, Error::<T>::UnstakeInsufficientBalance);
                         let new_balance = old_balance.checked_sub(&unstake_number).unwrap_or_else(Zero::zero);
                         let actual_number = old_balance.checked_sub(&new_balance).ok_or(Error::<T>::Overflow)?;
                         *optional = Some((new_balance, Self::inner_update_stake_node(new_balance, minimal_number)));
